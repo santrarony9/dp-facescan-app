@@ -62,27 +62,45 @@ const SelfieUpload = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#050505]">
+      {/* Dynamic Gold Blobs */}
+      <div className="bg-blob w-[500px] h-[500px] bg-[#D4AF37] rounded-full top-1/2 left-0 -translate-y-1/2 -translate-x-1/3"></div>
+      
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card w-full max-w-lg"
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="glass-card w-full max-w-lg relative z-10"
       >
-        <h2 className="text-2xl font-bold mb-6 text-center">Find Your Photos</h2>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-outfit font-bold mb-2 tracking-tight text-white">Find Your Photos</h2>
+          <p className="text-text-secondary text-sm">Upload a selfie to unlock your gallery</p>
+        </div>
         
-        <div className="aspect-square w-full max-w-[300px] mx-auto mb-8 relative group">
-          <div className="absolute inset-0 border-2 border-dashed border-primary/30 rounded-full group-hover:border-primary/60 transition-colors animate-spin-slow"></div>
-          <div className="absolute inset-4 overflow-hidden rounded-full bg-slate-800 flex items-center justify-center">
+        <div className="aspect-square w-full max-w-[280px] mx-auto mb-8 relative group">
+          {/* Outer glowing ring */}
+          <div className="absolute inset-0 border-2 border-dashed border-[#D4AF37]/40 rounded-full group-hover:border-[#D4AF37] transition-all duration-500 animate-spin-slow shadow-[0_0_30px_rgba(212,175,55,0.15)]"></div>
+          
+          <div className="absolute inset-3 overflow-hidden rounded-full bg-[#111] flex items-center justify-center border border-[#D4AF37]/20 shadow-inner relative">
             {image ? (
-              <img src={image} alt="Selfie" className="w-full h-full object-cover" />
+              <>
+                <img src={image} alt="Selfie" className="w-full h-full object-cover" />
+                {status === 'processing' && (
+                  <div className="absolute inset-0 animate-scan"></div>
+                )}
+              </>
             ) : (
-              <Camera size={48} className="text-text-secondary opacity-50" />
+              <Camera size={48} className="text-[#D4AF37] opacity-60" />
             )}
           </div>
         </div>
 
         {status === 'idle' && (
-          <div className="space-y-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-4"
+          >
             <input 
               type="file" 
               accept="image/*" 
@@ -93,54 +111,68 @@ const SelfieUpload = () => {
             />
             <button 
               onClick={() => fileInputRef.current.click()}
-              className="btn-primary w-full justify-center bg-transparent border-2 border-primary text-primary"
+              className="w-full py-4 rounded-xl border border-[#D4AF37]/50 text-[#D4AF37] font-bold hover:bg-[#D4AF37]/10 transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.1)]"
             >
               Take a Selfie
-              <Camera size={18} />
+              <Camera size={20} />
             </button>
             {image && (
               <button 
                 onClick={handleUpload}
-                className="btn-primary w-full justify-center"
+                className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.2)]"
               >
                 Scan My Face
-                <Upload size={18} />
+                <Upload size={20} />
               </button>
             )}
-          </div>
+          </motion.div>
         )}
 
         {status === 'uploading' && (
-          <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-            <p className="text-lg font-medium">Uploading selfie...</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-6"
+          >
+            <Loader2 className="w-12 h-12 text-[#D4AF37] animate-spin mx-auto mb-4 drop-shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
+            <p className="text-lg font-outfit text-white font-medium tracking-wide">Secure Uploading...</p>
+          </motion.div>
         )}
 
         {status === 'processing' && (
-          <div className="text-center py-8">
-            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-6"
+          >
+            <div className="w-full h-1 bg-[#222] rounded-full overflow-hidden mb-5">
               <motion.div 
-                className="h-full bg-primary"
+                className="h-full bg-gradient-to-r from-[#D4AF37] to-[#FDE047]"
                 initial={{ width: 0 }}
                 animate={{ width: '100%' }}
-                transition={{ duration: 3 }}
+                transition={{ duration: 3, ease: 'linear' }}
               />
             </div>
-            <p className="text-lg font-medium">Comparing with event photos...</p>
-            <p className="text-sm text-text-secondary">This usually takes a few seconds</p>
-          </div>
+            <p className="text-lg font-outfit font-medium text-white">Authenticating Profile...</p>
+            <p className="text-sm text-[#D4AF37]/70 mt-1">AI Face Match in progress</p>
+          </motion.div>
         )}
 
         {status === 'complete' && (
-          <div className="text-center py-8">
-            <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4 animate-bounce" />
-            <h3 className="text-xl font-bold mb-2">Success!</h3>
-            <p className="mb-6">We found 12 photos of you.</p>
-            <button className="btn-primary" onClick={() => window.location.href='/gallery'}>
-              View My Gallery
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-6"
+          >
+            <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-5 border border-emerald-500/30">
+               <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            </div>
+            <h3 className="text-2xl font-outfit font-bold mb-2 text-white">Access Granted</h3>
+            <p className="mb-8 text-text-secondary">Your high-resolution photos are ready.</p>
+            <button className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.2)]" onClick={() => navigate(`/${slug}/gallery`)}>
+              View VIP Gallery
             </button>
-          </div>
+          </motion.div>
         )}
       </motion.div>
     </div>

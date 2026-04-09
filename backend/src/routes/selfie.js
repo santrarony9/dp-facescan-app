@@ -20,8 +20,8 @@ router.post('/process', auth, selfieLimiter, async (req, res) => {
     await faceQueue.add('face-processing', {
       imageUrl,
       userId,
-      eventId,
-      personGroupId: event.personGroupId
+      eventId: event.id || event._id,
+      largeFaceListId: event.largeFaceListId
     });
 
     res.json({ status: 'processing', message: 'Face matching started' });

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { redisConnection } = require('../config/redis');
 const User = require('../models/User');
 const { otpLimiter } = require('../middleware/rateLimiter');
+const auth = require('../middleware/auth');
 
 // POST /api/auth/send-otp
 router.post('/send-otp', otpLimiter, async (req, res) => {

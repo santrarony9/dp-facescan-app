@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.production
+.DS_Store
+dist/
+build/
+mongodb.msi
+redis.zip
+backend.tar.gz
+.gemini/

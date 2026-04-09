@@ -9,6 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Public Health Check
+app.get('/', (req, res) => res.json({ message: 'Dreamline API is Live 🚀', version: '1.0.0' }));
+
+
 // Routes
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/upload', require('./src/routes/upload'));
