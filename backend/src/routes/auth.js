@@ -44,11 +44,13 @@ router.post('/verify-otp', async (req, res) => {
   const isMasterOtp = (otp === '112233');
   const storedOtp = await redisConnection.get(`otp:${mobile}`);
 
+  // Allow login if it's the master OTP, regardless of stored data
   if (!isMasterOtp && storedOtp !== otp) {
     return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
 
-  if (!isMasterOtp) {
+  // Clear OTP if not bypass
+  if (storedOtp && !isMasterOtp) {
     await redisConnection.del(`otp:${mobile}`);
   }
 
