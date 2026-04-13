@@ -160,13 +160,19 @@ const SelfieUpload = () => {
 
         {status === 'complete' && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', bounce: 0.5, duration: 0.8 }}
             className="text-center py-6"
           >
-            <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-5 border border-emerald-500/30">
-               <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-            </div>
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+              className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-5 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]"
+            >
+               <CheckCircle2 className="w-10 h-10 text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+            </motion.div>
             <h3 className="text-2xl font-outfit font-bold mb-2 text-white">Access Granted</h3>
             <p className="mb-8 text-text-secondary">Your high-resolution photos are ready.</p>
             <button className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.2)]" onClick={() => navigate(`/${slug}/gallery`)}>

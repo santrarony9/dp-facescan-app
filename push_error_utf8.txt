@@ -1,0 +1,117 @@
+﻿git : remote: error: GH013: 
+Repository rule violations found 
+for refs/heads/main.        
+At line:1 char:1
++ git push origin main 2> 
+push_error.txt ; Get-Content 
+push_error.txt
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo          : NotSp 
+   ecified: (remote: error: ...s/m  
+  ain.        :String) [], Remote   
+ Exception
+    + FullyQualifiedErrorId : Nativ 
+   eCommandError
+ 
+remote: 
+remote: - GITHUB PUSH PROTECTION    
+    
+remote:   ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö        
+remote:     Resolve the following 
+violations before pushing again     
+   
+remote: 
+remote:     - Push cannot contain 
+secrets        
+remote: 
+remote:             
+remote:      (?) Learn how to 
+resolve a blocked push        
+remote:      https://docs.github.com
+/code-security/secret-scanning/worki
+ng-with-secret-scanning-and-push-pro
+tection/working-with-push-protection
+-from-the-command-line#resolving-a-b
+locked-push        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Amazon AWS 
+Access Key ID ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö        
+remote:        locations:        
+remote:          - commit: 12213328f
+d0fed7c2485eba8c7b9ede137b6c318     
+   
+remote:            path: 
+backend/setup_vps_linux.sh:40       
+ 
+remote:             
+remote:        (?) To push, remove 
+secret from commit(s) or follow 
+this URL to allow the secret.       
+ 
+remote:        https://github.com/sa
+ntrarony9/dp-facescan-app/security/s
+ecret-scanning/unblock-secret/3C6WXi
+bgIJPx93KeDak7ko0TgJr        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Amazon AWS 
+Secret Access Key ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇö        
+remote:        locations:        
+remote:          - commit: 12213328f
+d0fed7c2485eba8c7b9ede137b6c318     
+   
+remote:            path: 
+backend/setup_vps_linux.sh:41       
+ 
+remote:             
+remote:        (?) To push, remove 
+secret from commit(s) or follow 
+this URL to allow the secret.       
+ 
+remote:        https://github.com/sa
+ntrarony9/dp-facescan-app/security/s
+ecret-scanning/unblock-secret/3C6WXp
+HF8dvWaWRcf1P6otqAs47        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Azure Face Key 
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+        
+remote:        locations:        
+remote:          - commit: 12213328f
+d0fed7c2485eba8c7b9ede137b6c318     
+   
+remote:            path: 
+backend/setup_vps_linux.sh:44       
+ 
+remote:             
+remote:        (?) To push, remove 
+secret from commit(s) or follow 
+this URL to allow the secret.       
+ 
+remote:        https://github.com/sa
+ntrarony9/dp-facescan-app/security/s
+ecret-scanning/unblock-secret/3C6WXo
+xck5IE1nuvnqcnHTS9gEv        
+remote:             
+remote: 
+remote: 
+To https://github.com/santrarony9/dp
+-facescan-app.git
+ ! [remote rejected] main -> main 
+(push declined due to repository 
+rule violations)
+error: failed to push some refs to '
+https://github.com/santrarony9/dp-fa
+cescan-app.git'

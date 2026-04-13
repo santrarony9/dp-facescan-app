@@ -5,18 +5,18 @@ import { useParams } from 'react-router-dom';
 import { galleryApi } from '../api/api';
 
 const GalleryPage = () => {
-  const { eventId } = useParams();
+  const { slug } = useParams();
   const [view, setView] = useState('grid');
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (eventId) fetchGallery();
-  }, [eventId]);
+    if (slug) fetchGallery();
+  }, [slug]);
 
   const fetchGallery = async () => {
     try {
-      const res = await galleryApi.getGallery(eventId);
+      const res = await galleryApi.getGallery(slug);
       setPhotos(res.data.photos);
     } catch (error) {
       console.error('Failed to fetch gallery');
@@ -72,6 +72,8 @@ const GalleryPage = () => {
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
                 loading="lazy"
               />
+              {/* Luxury Shine Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-[200%] transition-transform duration-1000 ease-in-out z-10 pointer-events-none"></div>
               
               {/* Premium Hover Overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-5">
@@ -102,9 +104,9 @@ const GalleryPage = () => {
           transition={{ delay: 0.5, type: 'spring', stiffness: 100 }}
           className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100%-2rem)] md:max-w-max flex justify-center"
         >
-          <button className="btn-primary shadow-[0_10px_30px_rgba(212,175,55,0.3)] px-6 md:px-10 py-4 md:py-4 rounded-full text-base md:text-lg border border-[#FDE047]/50 w-full md:w-auto backdrop-blur-md">
+          <button className="btn-primary shadow-[0_15px_40px_rgba(212,175,55,0.4)] px-6 md:px-10 py-4 md:py-4 rounded-full text-base md:text-lg border border-[#FDE047]/60 w-full md:w-auto backdrop-blur-md hover:scale-105 transition-all duration-300 group">
             Download All Masterpieces
-            <Download size={20} />
+            <Download size={20} className="group-hover:-translate-y-1 transition-transform" />
           </button>
         </motion.div>
       )}

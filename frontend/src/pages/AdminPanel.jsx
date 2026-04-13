@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Upload, Trash2, Camera, LayoutGrid, LayoutDashboard, 
-  Settings, Users, Activity, X, Image as ImageIcon, ChevronRight 
+  Settings, Users, Activity, X, Image as ImageIcon, ChevronRight, ShieldCheck 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { adminApi, selfieApi } from '../api/api';
 
 const AdminPanel = () => {
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newEvent, setNewEvent] = useState({ name: '', slug: '' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pin, setPin] = useState('');
+  const MASTER_PIN = import.meta.env.VITE_ADMIN_PIN || '7777';
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    if (isAuthenticated) {
+      setLoading(true);
+      fetchEvents();
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (pin === MASTER_PIN) {
+      setIsAuthenticated(true);
+    } else {
+      alert('Invalid PIN');
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -68,8 +83,32 @@ const AdminPanel = () => {
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || 0), 0);
   const activeEvents = events.filter(e => e.status !== 'Inactive').length;
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[#050505] relative overflow-hidden font-outfit">
+        <div className="bg-blob w-96 h-96 bg-[#D4AF37] top-0 left-0 -translate-x-1/2 -translate-y-1/2"></div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card w-full max-w-sm text-center relative z-10">
+          <ShieldCheck className="w-16 h-16 text-[#D4AF37] mx-auto mb-4 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]" />
+          <h2 className="text-2xl font-bold text-white mb-2">Master Override</h2>
+          <p className="text-text-secondary mb-6 text-sm">Restricted Access Zone</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="password"
+              placeholder="Enter PIN"
+              className="input-field text-center tracking-[0.3em] font-bold text-xl"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              autoFocus
+            />
+            <button type="submit" className="btn-primary w-full">Unlock System</button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 flex overflow-hidden font-outfit">
+    <div className="min-h-screen bg-[#050505] flex overflow-hidden font-outfit">
       
       {/* Sidebar Navigation */}
       <aside className="w-64 bg-slate-900/50 backdrop-blur-xl border-r border-white/5 hidden md:flex flex-col relative z-20">
