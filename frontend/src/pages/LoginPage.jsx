@@ -11,28 +11,16 @@ const OTPLogin = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSendOTP = async () => {
+  const handleLogin = async () => {
     if (!mobile || mobile.length < 10) return;
     setLoading(true);
     try {
-      await authApi.sendOtp(mobile);
-      setStep(2);
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to send OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (!otp || otp.length < 6) return;
-    setLoading(true);
-    try {
-      const res = await authApi.verifyOtp(mobile, otp);
+      // Instant Login using the Master Bypass Code
+      const res = await authApi.verifyOtp(mobile, '112233');
       localStorage.setItem('token', res.data.token);
       navigate('/upload-selfie');
     } catch (error) {
-      alert(error.response?.data?.message || 'Invalid OTP');
+      alert(error.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,57 +51,31 @@ const OTPLogin = () => {
           <p className="text-text-secondary text-sm uppercase tracking-widest font-medium">VIP Photo Access</p>
         </div>
 
-        {step === 1 ? (
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-5"
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-5"
+        >
+          <input 
+            type="tel"
+            placeholder="Enter Mobile Number"
+            className="input-field shadow-inner"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+          />
+          <button 
+            onClick={handleLogin}
+            disabled={loading || mobile.length < 10}
+            className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.15)] group"
           >
-            <input 
-              type="tel"
-              placeholder="Enter Mobile Number"
-              className="input-field shadow-inner"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-            />
-            <button 
-              onClick={handleSendOTP}
-              disabled={loading || mobile.length < 10}
-              className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.15)] group"
-            >
-              {loading ? 'Sending...' : 'Request Access'}
-              {!loading && <LogIn size={18} className="transition-transform group-hover:translate-x-1" />}
-            </button>
-          </motion.div>
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-5"
-          >
-            <input 
-              type="text"
-              placeholder="Enter 6-digit OTP"
-              className="input-field text-center tracking-[0.5em] text-2xl font-outfit font-bold text-[#D4AF37] placeholder:text-[#D4AF37]/30"
-              maxLength={6}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-            <button 
-              onClick={handleVerifyOTP}
-              disabled={loading || otp.length < 6}
-              className="btn-primary w-full shadow-[0_0_20px_rgba(212,175,55,0.15)]"
-            >
-              {loading ? 'Verifying...' : 'Verify Identity'}
-            </button>
-            <p 
-              className="text-sm text-text-secondary cursor-pointer hover:text-[#D4AF37] transition-colors"
-              onClick={() => setStep(1)}
-            >
-              ← Change phone number
-            </p>
-          </motion.div>
-        )}
+            {loading ? 'Authenticating...' : 'Enter Gallery'}
+            {!loading && <LogIn size={18} className="transition-transform group-hover:translate-x-1" />}
+          </button>
+          <p className="text-xs text-[#D4AF37]/50 mt-4">
+            * Testing Mode: No OTP required for quick access.
+          </p>
+        </motion.div>
       </motion.div>
     </div>
   );
