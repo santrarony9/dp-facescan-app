@@ -9,6 +9,7 @@ const app = express();
 app.use(cors({
   origin: [
     'https://app.dreamlineproduction.com',
+    /\.vercel\.app$/, // Allow all Vercel deployments
     'http://localhost:5173',
     'http://localhost:3000'
   ],
