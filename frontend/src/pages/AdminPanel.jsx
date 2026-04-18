@@ -55,6 +55,17 @@ const AdminPanel = () => {
     }
   };
 
+  const handleDeleteEvent = async (eventId) => {
+    if (window.confirm('CRITICAL: Delete this event? This will remove all photos and biometric lists. This cannot be undone.')) {
+      try {
+        await adminApi.deleteEvent(eventId);
+        fetchEvents();
+      } catch (error) {
+        alert('Deletion failed. Please try again.');
+      }
+    }
+  };
+
   const handleUpload = async (eventId) => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -311,7 +322,10 @@ const AdminPanel = () => {
                           <Upload size={18} strokeWidth={3} />
                           Inject Assets
                         </button>
-                        <button className="p-4.5 text-rose-500 bg-rose-500/5 border border-rose-500/10 rounded-2xl hover:bg-rose-500 hover:text-black transition-all active:scale-95">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event._id); }}
+                          className="p-4.5 text-rose-500 bg-rose-500/5 border border-rose-500/10 rounded-2xl hover:bg-rose-500 hover:text-black transition-all active:scale-95"
+                        >
                           <Trash2 size={20} />
                         </button>
                       </div>

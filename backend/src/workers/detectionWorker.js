@@ -47,16 +47,7 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
       isProcessed: true 
     });
 
-    // 4. Trigger training on the LargeFaceList so matches can be found
-    if (persistedFaceIds.length > 0) {
-      try {
-        await azureFace.post(`/face/v1.0/largefacelists/${largeFaceListId}/train`);
-        console.log(`[DetectionWorker] Training triggered for list ${largeFaceListId}`);
-      } catch (trainErr) {
-        // It's normal for train to throw if it's already running
-        console.log(`[DetectionWorker] Train command note:`, trainErr.response?.data?.error?.message || trainErr.message);
-      }
-    }
+    console.log(`[DetectionWorker] Photo ${photoId} processed with ${persistedFaceIds.length} faces.`);
 
   } catch (error) {
     console.error(`[DetectionWorker] Error processing photo ${photoId}:`, error.response?.data || error.message);

@@ -35,6 +35,25 @@ const GalleryPage = () => {
     document.body.removeChild(link);
   };
 
+  const handleShare = async (photo) => {
+    const shareData = {
+      title: 'Dreamline VIP Gallery',
+      text: 'Check out this capture from Dreamline AI!',
+      url: photo.url
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(photo.url);
+        alert('Link copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Sharing failed', err);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -124,6 +143,7 @@ const GalleryPage = () => {
                       <span className="text-xs uppercase tracking-widest">Store</span>
                     </button>
                     <button 
+                        onClick={(e) => { e.stopPropagation(); handleShare(photo); }}
                         className="p-3.5 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl hover:bg-black/60 text-white transition-all active:scale-95"
                     >
                       <Share2 size={18} />

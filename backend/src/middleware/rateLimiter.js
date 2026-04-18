@@ -11,7 +11,7 @@ const otpLimiter = rateLimit({
 const selfieLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // Limit each guest to 3 scans per hour
-  message: { message: 'Max 3 selfie attempts allowed per hour' },
+  message: { message: 'Biometric limit reached (Max 3 scans/hour). Please wait before re-scanning or contact support for VIP override.' },
   standardHeaders: true,
   legacyHeaders: false,
 });

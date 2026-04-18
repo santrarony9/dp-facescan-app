@@ -62,6 +62,14 @@ router.post('/photos/bulk', auth, async (req, res) => {
     });
 
     const savedPhotos = await Promise.all(photoPromises);
+
+    // 3. Trigger training once for the entire batch
+    try {
+      await azureFace.post(`/face/v1.0/largefacelists/${event.largeFaceListId}/train`);
+    } catch (trainErr) {
+      console.log('Auto-train note:', trainErr.response?.data?.error?.message || trainErr.message);
+    }
+
     res.json({ message: `${savedPhotos.length} photos queued for processing`, photos: savedPhotos });
   } catch (error) {
     res.status(500).json({ message: 'Error processing bulk photos', error: error.message });
@@ -84,6 +92,44 @@ router.get('/events', auth, async (req, res) => {
   });
 
   res.json(eventsWithCount);
+});
+
+// DELETE /api/admin/events/:id
+router.delete('/events/:id', auth, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    // 1. Delete associated photos in DB
+    await Photo.deleteMany({ eventId: event._id });
+
+    // 2. Delete LargeFaceList in Azure
+    try {
+      await azureFace.delete(`/face/v1.0/largefacelists/${event.largeFaceListId}`);
+    } catch (azureErr) {
+      console.error('Azure deletion error (non-fatal):', azureErr.response?.data || azureErr.message);
+    }
+
+    // 3. Delete event in DB
+    await Event.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Event and all associated data deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting event', error: error.message });
+  }
+});
+
+// POST /api/admin/events/:id/train (Manual trigger)
+router.post('/events/:id/train', auth, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    await azureFace.post(`/face/v1.0/largefacelists/${event.largeFaceListId}/train`);
+    res.json({ message: 'Training triggered' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error triggering training', error: error.response?.data || error.message });
+  }
 });
 
 module.exports = router;
