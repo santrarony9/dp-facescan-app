@@ -132,4 +132,14 @@ router.post('/events/:id/train', auth, async (req, res) => {
   }
 });
 
+// GET /api/admin/leads
+router.get('/leads', auth, async (req, res) => {
+  try {
+    const leads = await User.find().sort({ createdAt: -1 });
+    res.json(leads);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching leads' });
+  }
+});
+
 module.exports = router;

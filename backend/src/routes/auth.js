@@ -38,7 +38,7 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
 
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
-  const { mobile, otp, eventSlug } = req.body;
+  const { mobile, otp, fullName, email } = req.body;
   
   // Master OTP Bypass for Developer Testing
   const isMasterOtp = (otp === '112233');
@@ -56,7 +56,16 @@ router.post('/verify-otp', async (req, res) => {
 
   let user = await User.findOne({ mobile });
   if (!user) {
-    user = new User({ mobile });
+    user = new User({ 
+      mobile, 
+      fullName: fullName || 'VIP Guest', 
+      email: email || '' 
+    });
+    await user.save();
+  } else if (fullName || email) {
+    // Update data if provided and not already present
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
     await user.save();
   }
 

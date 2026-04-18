@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Share2, Grid, List, X, ExternalLink, Sparkles } from 'lucide-react';
+import { Download, Share2, Grid, List, X, ExternalLink, Sparkles, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { galleryApi } from '../api/api';
 
 const GalleryPage = () => {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [view, setView] = useState('grid');
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +14,10 @@ const GalleryPage = () => {
   useEffect(() => {
     if (slug) fetchGallery();
   }, [slug]);
+
+  const handleShop = (photo) => {
+    navigate(`/merchandise?photo=${encodeURIComponent(photo.url)}`);
+  };
 
   const fetchGallery = async () => {
     try {
@@ -134,20 +138,28 @@ const GalleryPage = () => {
                 
                 {/* Premium Hover Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
-                  <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+                  <div className="flex flex-col gap-2 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
                     <button 
-                        onClick={(e) => { e.stopPropagation(); handleDownload(photo.url); }}
-                        className="flex-1 bg-primary hover:bg-primary-bright text-black font-extrabold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                        onClick={(e) => { e.stopPropagation(); handleShop(photo); }}
+                        className="w-full bg-primary hover:bg-primary-bright text-black font-extrabold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-primary/20"
                     >
-                      <Download size={18} />
-                      <span className="text-xs uppercase tracking-widest">Store</span>
+                      <ShoppingBag size={18} />
+                      <span className="text-[10px] uppercase tracking-widest">Personalize</span>
                     </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); handleShare(photo); }}
-                        className="p-3.5 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl hover:bg-black/60 text-white transition-all active:scale-95"
-                    >
-                      <Share2 size={18} />
-                    </button>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleDownload(photo.url); }}
+                            className="flex-1 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleShare(photo); }}
+                            className="p-3 bg-white/10 backdrop-blur-md hover:bg-white/20 border border-white/10 rounded-xl text-white transition-all"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -181,16 +193,19 @@ const GalleryPage = () => {
                 <img src={selectedImage.url} alt="Full View" className="max-w-full max-h-[75vh] object-contain" />
               </div>
               
-              <div className="mt-8 flex gap-6 w-full max-w-md">
+              <div className="mt-8 flex gap-6 w-full max-w-lg">
+                <button 
+                  onClick={() => handleShop(selectedImage)}
+                  className="flex-1 btn-primary py-5 rounded-2xl flex items-center justify-center gap-3 shadow-2xl shadow-primary/30"
+                >
+                  <ShoppingBag size={24} />
+                  <span className="font-black italic uppercase tracking-tighter">Customize Merchandise</span>
+                </button>
                 <button 
                   onClick={() => handleDownload(selectedImage.url)}
-                  className="flex-1 btn-primary py-4 rounded-2xl flex items-center justify-center gap-3"
+                  className="p-5 bg-zinc-900 border border-primary/20 rounded-2xl text-primary hover:bg-primary/10 transition-colors"
                 >
-                  <Download size={22} />
-                  <span>Download Masterpiece</span>
-                </button>
-                <button className="p-4 bg-zinc-900 border border-primary/20 rounded-2xl text-primary hover:bg-primary/10 transition-colors">
-                  <ExternalLink size={24} />
+                  <Download size={24} />
                 </button>
               </div>
             </motion.div>

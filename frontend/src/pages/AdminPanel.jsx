@@ -9,19 +9,18 @@ import { adminApi, selfieApi } from '../api/api';
 
 const AdminPanel = () => {
   const [events, setEvents] = useState([]);
+  const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isCreating, setIsCreating] = useState(false);
-  const [newEvent, setNewEvent] = useState({ name: '', slug: '' });
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pin, setPin] = useState('');
-  const MASTER_PIN = import.meta.env.VITE_ADMIN_PIN || '7777';
+// ... existing state ...
 
   useEffect(() => {
     if (isAuthenticated) {
-      setLoading(true);
-      fetchEvents();
+      if (activeTab === 'dashboard') fetchEvents();
+      if (activeTab === 'leads') fetchLeads();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeTab]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -33,6 +32,7 @@ const AdminPanel = () => {
   };
 
   const fetchEvents = async () => {
+    setLoading(true);
     try {
       const res = await adminApi.getEvents();
       setEvents(res.data);
@@ -41,6 +41,40 @@ const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.getLeads();
+      setLeads(res.data);
+    } catch (error) {
+      console.error('Failed to fetch leads');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadLeadsCSV = () => {
+    const headers = ['Name', 'Mobile', 'Email', 'Joined Date'];
+    const rows = leads.map(l => [
+      l.fullName || 'N/A',
+      l.mobile || 'N/A',
+      l.email || 'N/A',
+      new Date(l.createdAt).toLocaleDateString()
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `dreamline_leads_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleCreateEvent = async (e) => {
@@ -159,26 +193,27 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        <nav className="flex-1 px-6 space-y-2">
+          <nav className="flex-1 px-6 space-y-2">
           <p className="px-4 text-[10px] text-zinc-600 font-bold uppercase tracking-[0.2em] mb-4">Core Terminal</p>
           {[
-            { icon: LayoutDashboard, label: 'Control Center', active: true },
-            { icon: LayoutGrid, label: 'Cloud Events' },
-            { icon: Users, label: 'Identity Pool' },
-            { icon: Activity, label: 'Neural Logs' },
-            { icon: Database, label: 'Assets' }
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Control Center' },
+            { id: 'events', icon: LayoutGrid, label: 'Cloud Events' },
+            { id: 'leads', icon: Users, label: 'Lead Center' },
+            { id: 'logs', icon: Activity, label: 'Neural Logs' },
+            { id: 'assets', icon: Database, label: 'Assets' }
           ].map((item, idx) => (
             <button 
-              key={idx}
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group ${
-                item.active 
+                activeTab === item.id
                   ? 'bg-primary text-black font-extrabold shadow-[0_10px_25px_rgba(212,175,55,0.3)]' 
                   : 'text-zinc-500 hover:text-white hover:bg-zinc-900/50'
               }`}
             >
-              <item.icon size={20} className={item.active ? 'text-black' : 'group-hover:text-primary transition-colors'} />
+              <item.icon size={20} className={activeTab === item.id ? 'text-black' : 'group-hover:text-primary transition-colors'} />
               <span className="text-sm uppercase tracking-widest">{item.label}</span>
-              {idx > 0 && <ChevronRight size={14} className="ml-auto opacity-20" />}
+              {activeTab !== item.id && <ChevronRight size={14} className="ml-auto opacity-20" />}
             </button>
           ))}
         </nav>
@@ -232,109 +267,164 @@ const AdminPanel = () => {
             </motion.div>
           </header>
 
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[ 
-               { label: 'Active Deployments', value: totalEvents, sub: 'High Priority', color: 'from-primary-dim to-primary' },
-               { label: 'Cloud Storage', value: totalPhotos, sub: 'Assets Indexed', color: 'from-zinc-800 to-zinc-900' },
-               { label: 'Real-time Matches', value: (totalPhotos * 42).toLocaleString(), sub: 'Calculated Activity', color: 'from-emerald-900/50 to-emerald-900/20' }
-            ].map((stat, idx) => (
-              <motion.div 
-                key={idx}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * idx }}
-                className={`glass-card p-10 relative overflow-hidden group border-zinc-800 hover:border-primary/30 transition-all duration-500 ${idx === 2 ? 'border-emerald-500/20' : ''}`}
-              >
-                <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br ${stat.color} rounded-full blur-[80px] opacity-10 group-hover:opacity-20 transition-opacity`} />
-                <div className="relative z-10">
-                    <h4 className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-4">{stat.label}</h4>
-                    <div className="text-5xl font-black text-white tracking-tighter mb-2">{loading ? '...' : stat.value}</div>
-                    <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest flex items-center gap-2">
-                        <Activity size={10} className="text-primary" />
-                        {stat.sub}
-                    </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Event Content Section */}
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                  <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Current Instances</h3>
-                  <div className="px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{events.length} Systems</div>
-              </div>
-              <button className="text-zinc-500 hover:text-primary p-2 transition-colors">
-                 <Filter size={20} />
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="glass-card h-64 animate-pulse bg-zinc-900/50 border-none rounded-[2.5rem]" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {events.map((event, index) => (
+          {/* Conditional Content Rendering */}
+          {activeTab === 'dashboard' ? (
+            <div className="space-y-12">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {[ 
+                   { label: 'Active Deployments', value: totalEvents, sub: 'High Priority', color: 'from-primary-dim to-primary' },
+                   { label: 'Cloud Storage', value: totalPhotos, sub: 'Assets Indexed', color: 'from-zinc-800 to-zinc-900' },
+                   { label: 'Real-time Matches', value: (totalPhotos * 42).toLocaleString(), sub: 'Calculated Activity', color: 'from-emerald-900/50 to-emerald-900/20' }
+                ].map((stat, idx) => (
                   <motion.div 
-                    key={event._id}
-                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * index }}
-                    className="glass-card group p-10 bg-zinc-950/40 border-zinc-900 hover:border-primary/40 transition-all duration-700 rounded-[3rem] luxury-shine"
+                    key={idx}
+                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * idx }}
+                    className={`glass-card p-10 relative overflow-hidden group border-zinc-800 hover:border-primary/30 transition-all duration-500 ${idx === 2 ? 'border-emerald-500/20' : ''}`}
                   >
-                    <div className="flex flex-col h-full justify-between">
-                      <div className="flex justify-between items-start mb-8">
-                        <div className="flex items-center gap-5">
-                            <div className="w-16 h-16 bg-black rounded-3xl flex items-center justify-center border border-zinc-800 shadow-2xl group-hover:border-primary/30 transition-colors">
-                            <ImageIcon className="text-primary" size={28} />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-black text-white mb-1 group-hover:text-primary transition-colors tracking-tight uppercase italic">{event.name}</h3>
-                                <p className="text-zinc-500 text-xs font-mono font-medium tracking-wider lowercase">/{event.slug}</p>
-                            </div>
+                    <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br ${stat.color} rounded-full blur-[80px] opacity-10 group-hover:opacity-20 transition-opacity`} />
+                    <div className="relative z-10">
+                        <h4 className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-4">{stat.label}</h4>
+                        <div className="text-5xl font-black text-white tracking-tighter mb-2">{loading ? '...' : stat.value}</div>
+                        <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest flex items-center gap-2">
+                            <Activity size={10} className="text-primary" />
+                            {stat.sub}
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
-                            <span className="text-[10px] font-black tracking-widest uppercase text-primary">Live</span>
-                            <button className="ml-4 p-2 text-zinc-600 hover:text-white transition-colors">
-                                <MoreVertical size={20} />
-                            </button>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mb-10">
-                        <div className="bg-black/50 p-6 rounded-3xl border border-zinc-900 space-y-1">
-                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Data Load</span>
-                            <p className="text-xl font-bold text-white">{event.photoCount || 0} JPGs</p>
-                        </div>
-                        <div className="bg-black/50 p-6 rounded-3xl border border-zinc-900 space-y-1">
-                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Avg Accuracy</span>
-                            <p className="text-xl font-bold text-white">99.8%</p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-4">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleUpload(event._id); }}
-                          className="flex-1 py-4.5 text-[11px] font-black rounded-2xl bg-primary hover:bg-primary-bright text-black transition-all flex justify-center items-center gap-3 shadow-xl shadow-primary/20 uppercase tracking-widest active:scale-95"
-                        >
-                          <Upload size={18} strokeWidth={3} />
-                          Inject Assets
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event._id); }}
-                          className="p-4.5 text-rose-500 bg-rose-500/5 border border-rose-500/10 rounded-2xl hover:bg-rose-500 hover:text-black transition-all active:scale-95"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
                     </div>
                   </motion.div>
                 ))}
               </div>
-            )}
-          </div>
+
+              {/* Event Content Section */}
+              <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                      <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Current Instances</h3>
+                      <div className="px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{events.length} Systems</div>
+                  </div>
+                  <button className="text-zinc-500 hover:text-primary p-2 transition-colors">
+                     <Filter size={20} />
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {[1,2,3,4].map(i => (
+                      <div key={i} className="glass-card h-64 animate-pulse bg-zinc-900/50 border-none rounded-[2.5rem]" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {events.map((event, index) => (
+                      <motion.div 
+                        key={event._id}
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * index }}
+                        className="glass-card group p-10 bg-zinc-950/40 border-zinc-900 hover:border-primary/40 transition-all duration-700 rounded-[3rem] luxury-shine"
+                      >
+                        <div className="flex flex-col h-full justify-between">
+                          <div className="flex justify-between items-start mb-8">
+                            <div className="flex items-center gap-5">
+                                <div className="w-16 h-16 bg-black rounded-3xl flex items-center justify-center border border-zinc-800 shadow-2xl group-hover:border-primary/30 transition-colors">
+                                <ImageIcon className="text-primary" size={28} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-white mb-1 group-hover:text-primary transition-colors tracking-tight uppercase italic">{event.name}</h3>
+                                    <p className="text-zinc-500 text-xs font-mono font-medium tracking-wider lowercase">/{event.slug}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
+                                <span className="text-[10px] font-black tracking-widest uppercase text-primary">Live</span>
+                                <button className="ml-4 p-2 text-zinc-600 hover:text-white transition-colors">
+                                    <MoreVertical size={20} />
+                                </button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 mb-10">
+                            <div className="bg-black/50 p-6 rounded-3xl border border-zinc-900 space-y-1">
+                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Data Load</span>
+                                <p className="text-xl font-bold text-white">{event.photoCount || 0} JPGs</p>
+                            </div>
+                            <div className="bg-black/50 p-6 rounded-3xl border border-zinc-900 space-y-1">
+                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Avg Accuracy</span>
+                                <p className="text-xl font-bold text-white">99.8%</p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleUpload(event._id); }}
+                              className="flex-1 py-4.5 text-[11px] font-black rounded-2xl bg-primary hover:bg-primary-bright text-black transition-all flex justify-center items-center gap-3 shadow-xl shadow-primary/20 uppercase tracking-widest active:scale-95"
+                            >
+                              <Upload size={18} strokeWidth={3} />
+                              Inject Assets
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event._id); }}
+                              className="p-4.5 text-rose-500 bg-rose-500/5 border border-rose-500/10 rounded-2xl hover:bg-rose-500 hover:text-black transition-all active:scale-95"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeTab === 'leads' ? (
+            <motion.div 
+               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+               className="space-y-8"
+            >
+               <div className="flex items-center justify-between">
+                  <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">Identity Pool (Leads)</h3>
+                  <button 
+                    onClick={downloadLeadsCSV}
+                    className="btn-primary py-4 px-8 rounded-2xl flex items-center gap-3"
+                  >
+                     <Download size={20} />
+                     <span className="text-xs font-black">Export leads (CSV)</span>
+                  </button>
+               </div>
+
+               <div className="glass-card overflow-hidden border-zinc-800">
+                  <table className="w-full text-left">
+                     <thead>
+                        <tr className="bg-zinc-900/50 border-b border-zinc-800">
+                           <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Name</th>
+                           <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Mobile</th>
+                           <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Email</th>
+                           <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Joined</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-zinc-900">
+                        {leads.map((lead) => (
+                           <tr key={lead._id} className="hover:bg-primary/5 transition-colors group">
+                              <td className="px-8 py-6">
+                                 <div className="font-bold text-white group-hover:text-primary transition-colors">{lead.fullName || 'VIP Guest'}</div>
+                              </td>
+                              <td className="px-8 py-6 text-zinc-400 font-mono text-sm">{lead.mobile}</td>
+                              <td className="px-8 py-6 text-zinc-400 text-sm">{lead.email || '-'}</td>
+                              <td className="px-8 py-6 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                           </tr>
+                        ))}
+                        {leads.length === 0 && !loading && (
+                          <tr>
+                            <td colSpan="4" className="px-8 py-20 text-center text-zinc-600 font-bold uppercase tracking-widest italic">No identity records found</td>
+                          </tr>
+                        )}
+                     </tbody>
+                  </table>
+               </div>
+            </motion.div>
+          ) : (
+            <div className="min-h-[400px] flex items-center justify-center border-2 border-dashed border-zinc-800 rounded-[3rem]">
+               <p className="text-zinc-600 font-black uppercase tracking-[0.3em] italic">Accessing Module Port...</p>
+            </div>
+          )}
         </div>
       </main>
 

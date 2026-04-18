@@ -5,21 +5,10 @@ import LoginPage from './pages/LoginPage';
 import SelfieUpload from './pages/SelfieUpload';
 import GalleryPage from './pages/GalleryPage';
 import AdminPanel from './pages/AdminPanel';
+import MerchandisePage from './pages/MerchandisePage';
 import './index.css';
 
-// Protected Route Component
-const ProtectedScanRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  const location = useLocation();
-
-  if (!token) {
-    // Save the intended path to redirect back after login
-    // Use encodeURIComponent to safely pass the path
-    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
-  }
-
-  return children;
-};
+// ... Protected Route Component code ...
 
 const AnimatedRoutes = () => {
   const location = useLocation();
@@ -44,6 +33,14 @@ const AnimatedRoutes = () => {
           element={
             <ProtectedScanRoute>
               <GalleryPage />
+            </ProtectedScanRoute>
+          } 
+        />
+        <Route 
+          path="/merchandise" 
+          element={
+            <ProtectedScanRoute>
+              <MerchandisePage />
             </ProtectedScanRoute>
           } 
         />

@@ -19,7 +19,7 @@ api.interceptors.request.use((config) => {
 
 export const authApi = {
   sendOtp: (mobile) => api.post('/auth/send-otp', { mobile }),
-  verifyOtp: (mobile, otp) => api.post('/auth/verify-otp', { mobile, otp }),
+  verifyOtp: (mobile, otp, fullName, email) => api.post('/auth/verify-otp', { mobile, otp, fullName, email }),
   getStatus: () => api.get('/auth/status'),
 };
 
@@ -28,6 +28,7 @@ export const adminApi = {
   createEvent: (data) => api.post('/admin/events', data),
   deleteEvent: (eventId) => api.delete(`/admin/events/${eventId}`),
   trainEvent: (eventId) => api.post(`/admin/events/${eventId}/train`),
+  getLeads: () => api.get('/admin/leads'),
   uploadPhotos: (eventId, images) => api.post('/admin/photos/bulk', { eventId, images }),
 };
 
