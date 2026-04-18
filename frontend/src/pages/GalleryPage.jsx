@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Share2, Grid, List, Image as ImageIcon } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Download, Share2, Grid, List, X, ExternalLink, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'react-router-dom';
 import { galleryApi } from '../api/api';
 
@@ -9,6 +9,7 @@ const GalleryPage = () => {
   const [view, setView] = useState('grid');
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     if (slug) fetchGallery();
@@ -25,93 +26,177 @@ const GalleryPage = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#050505] p-4 pb-20 relative overflow-hidden">
-      {/* Background Ambience */}
-      <div className="bg-blob w-full h-[300px] bg-[#D4AF37] top-0 left-1/2 -translate-x-1/2 opacity-20"></div>
+  const handleDownload = (imageUrl) => {
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `dreamline-${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-      <header className="max-w-6xl mx-auto py-8 lg:py-12 flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-        <div>
-          <h1 className="text-4xl md:text-5xl font-outfit font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FDE047] to-[#D4AF37] mb-2 tracking-tight">Your VIP Gallery</h1>
-          <p className="text-text-secondary">We securely matched <span className="text-white font-medium">{photos.length}</span> high-res photos</p>
-        </div>
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="min-h-screen bg-[#050505] p-4 pb-32 relative overflow-hidden"
+    >
+      {/* Premium Ambience */}
+      <div className="bg-blob w-full h-[400px] bg-primary/10 top-0 left-1/2 -translate-x-1/2 opacity-30" />
+      
+      <header className="max-w-7xl mx-auto py-12 lg:py-20 flex flex-col md:flex-row md:items-end justify-between gap-8 relative z-10 border-b border-primary/10 mb-12">
+        <motion.div
+          initial={{ x: -20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.8 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+             <Sparkles className="text-primary w-5 h-5" />
+             <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px]">Dreamline Collection</span>
+          </div>
+          <h1 className="text-5xl md:text-7xl font-outfit font-extrabold text-white mb-4 tracking-tighter italic uppercase">
+            VIP <span className="text-primary">Gallery</span>
+          </h1>
+          <p className="text-zinc-500 text-sm font-medium">
+            Secured access to <span className="text-primary font-bold">{photos.length}</span> high-fidelity captures.
+          </p>
+        </motion.div>
         
-        <div className="flex items-center gap-2 bg-[#111] border border-[#D4AF37]/20 p-1.5 rounded-xl shadow-inner">
+        <motion.div 
+          initial={{ x: 20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="flex items-center gap-2 bg-zinc-900/50 backdrop-blur-xl border border-primary/20 p-1.5 rounded-2xl shadow-inner"
+        >
           <button 
             onClick={() => setView('grid')}
-            className={`p-2.5 rounded-lg transition-all duration-300 ${view === 'grid' ? 'bg-[#D4AF37] text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'text-text-secondary hover:text-white'}`}
+            className={`p-3 rounded-xl transition-all duration-500 ${view === 'grid' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
           >
             <Grid size={20} />
           </button>
           <button 
             onClick={() => setView('list')}
-            className={`p-2.5 rounded-lg transition-all duration-300 ${view === 'list' ? 'bg-[#D4AF37] text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'text-text-secondary hover:text-white'}`}
+            className={`p-3 rounded-xl transition-all duration-500 ${view === 'list' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
           >
             <List size={20} />
           </button>
-        </div>
+        </motion.div>
       </header>
 
-      <main className="max-w-6xl mx-auto relative z-10">
-        <motion.div 
-          layout
-          className={`grid gap-6 ${view === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 max-w-3xl mx-auto'}`}
-        >
-          {photos.map((photo, index) => (
-            <motion.div 
-              layout
-              key={photo.id}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: index * 0.05, duration: 0.5 }}
-              className="group relative aspect-[3/4] overflow-hidden rounded-2xl bg-[#0A0A0A] border border-[#D4AF37]/10 hover:border-[#D4AF37]/40 hover:shadow-[0_10px_40px_rgba(212,175,55,0.15)] transition-all duration-500"
-            >
-              <img 
-                src={photo.url} 
-                alt="Gallery Item" 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
-                loading="lazy"
-              />
-              {/* Luxury Shine Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-[200%] transition-transform duration-1000 ease-in-out z-10 pointer-events-none"></div>
-              
-              {/* Premium Hover Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-5">
-                <motion.div 
-                  initial={{ y: 20, opacity: 0 }}
-                  whileHover={{ y: 0, opacity: 1 }}
-                  className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-all duration-500"
-                >
-                  <button className="flex-1 bg-[#D4AF37] hover:bg-[#FDE047] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                    <Download size={18} />
-                    <span>Save</span>
-                  </button>
-                  <button className="p-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl hover:bg-white/20 text-white transition-all">
-                    <Share2 size={18} />
-                  </button>
-                </motion.div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
+      <main className="max-w-7xl mx-auto relative z-10 px-2">
+        {loading ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+                {[1,2,3,4,5,6,7,8].map(i => (
+                    <div key={i} className="aspect-[3/4] rounded-3xl bg-zinc-900/50 animate-pulse border border-white/5" />
+                ))}
+            </div>
+        ) : (
+          <motion.div 
+            layout
+            className={`grid gap-8 ${view === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 max-w-4xl mx-auto'}`}
+          >
+            {photos.map((photo, index) => (
+              <motion.div 
+                layout
+                key={photo.id || index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => setSelectedImage(photo)}
+                className="group relative aspect-[3/4] overflow-hidden rounded-[2rem] bg-zinc-900 border border-primary/10 hover:border-primary/50 transition-all duration-700 cursor-pointer shadow-2xl luxury-shine"
+              >
+                <img 
+                  src={photo.url} 
+                  alt="Gallery Item" 
+                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 grayscale-[0.3] group-hover:grayscale-0"
+                  loading="lazy"
+                />
+                
+                {/* Premium Hover Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                  <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleDownload(photo.url); }}
+                        className="flex-1 bg-primary hover:bg-primary-bright text-black font-extrabold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                    >
+                      <Download size={18} />
+                      <span className="text-xs uppercase tracking-widest">Store</span>
+                    </button>
+                    <button 
+                        className="p-3.5 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl hover:bg-black/60 text-white transition-all active:scale-95"
+                    >
+                      <Share2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
       </main>
 
-      {/* Floating Action Button for Bulk Download */}
-      {photos.length > 0 && (
+      {/* Lightbox / Preview Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md"
+            onClick={() => setSelectedImage(null)}
+          >
+            <button className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors z-[110]">
+              <X size={32} />
+            </button>
+            
+            <motion.div 
+              initial={{ scale: 0.9, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 20, opacity: 0 }}
+              className="relative max-w-5xl w-full max-h-[85vh] flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden border border-primary/20 shadow-[0_0_100px_rgba(212,175,55,0.15)] bg-zinc-900 flex items-center justify-center">
+                <img src={selectedImage.url} alt="Full View" className="max-w-full max-h-[75vh] object-contain" />
+              </div>
+              
+              <div className="mt-8 flex gap-6 w-full max-w-md">
+                <button 
+                  onClick={() => handleDownload(selectedImage.url)}
+                  className="flex-1 btn-primary py-4 rounded-2xl flex items-center justify-center gap-3"
+                >
+                  <Download size={22} />
+                  <span>Download Masterpiece</span>
+                </button>
+                <button className="p-4 bg-zinc-900 border border-primary/20 rounded-2xl text-primary hover:bg-primary/10 transition-colors">
+                  <ExternalLink size={24} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Premium Bulk Action */}
+      {!loading && photos.length > 0 && (
         <motion.div 
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.5, type: 'spring', stiffness: 100 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100%-2rem)] md:max-w-max flex justify-center"
+          transition={{ delay: 0.8, type: 'spring', stiffness: 80 }}
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100%-2.5rem)] md:max-w-md px-2"
         >
-          <button className="btn-primary shadow-[0_15px_40px_rgba(212,175,55,0.4)] px-6 md:px-10 py-4 md:py-4 rounded-full text-base md:text-lg border border-[#FDE047]/60 w-full md:w-auto backdrop-blur-md hover:scale-105 transition-all duration-300 group">
-            Download All Masterpieces
-            <Download size={20} className="group-hover:-translate-y-1 transition-transform" />
+          <button className="btn-primary w-full shadow-[0_20px_50px_rgba(212,175,55,0.45)] py-5 rounded-3xl text-sm border-t border-primary-bright/30 group">
+            <span className="flex items-center justify-center gap-3 font-outfit font-extrabold uppercase tracking-[0.2em]">
+              Claim Entire Collection
+              <Download size={20} className="group-hover:translate-y-1 transition-transform" />
+            </span>
           </button>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 };
 
 export default GalleryPage;
+

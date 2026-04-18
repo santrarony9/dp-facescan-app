@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { faceQueue } = require('../config/redis');
 const auth = require('../middleware/auth');
 const Event = require('../models/Event');
@@ -12,7 +13,10 @@ router.post('/process', auth, selfieLimiter, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const query = eventId ? { _id: eventId } : { slug: slug };
+    const query = eventId && mongoose.isValidObjectId(eventId) 
+      ? { _id: eventId } 
+      : { slug: slug || 'default' };
+      
     const event = await Event.findOne(query);
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
