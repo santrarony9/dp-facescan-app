@@ -27,6 +27,7 @@ export const adminApi = {
   getEvents: () => api.get('/admin/events'),
   createEvent: (data) => api.post('/admin/events', data),
   deleteEvent: (eventId) => api.delete(`/admin/events/${eventId}`),
+  updateEvent: (eventId, data) => api.put(`/admin/events/${eventId}`, data),
   trainEvent: (eventId) => api.post(`/admin/events/${eventId}/train`),
   getLeads: () => api.get('/admin/leads'),
   uploadPhotos: (eventId, images) => api.post('/admin/photos/bulk', { eventId, images }),

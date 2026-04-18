@@ -4,6 +4,7 @@ const EventSchema = new mongoose.Schema({
   name: { type: String, required: true },
   slug: { type: String, required: true, unique: true },
   bannerUrl: { type: String },
+  eventDate: { type: Date },
   largeFaceListId: { type: String }, // Azure LargeFaceList ID
   createdAt: { type: Date, default: Date.now }
 });

@@ -10,10 +10,13 @@ import { adminApi, selfieApi } from '../api/api';
 const AdminPanel = () => {
   const [events, setEvents] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [newEvent, setNewEvent] = useState({ name: '', slug: '', eventDate: '' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isCreating, setIsCreating] = useState(false);
-// ... existing state ...
+  const MASTER_PIN = '1234';
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -83,7 +86,7 @@ const AdminPanel = () => {
       await adminApi.createEvent(newEvent);
       fetchEvents();
       setIsCreating(false);
-      setNewEvent({ name: '', slug: '' });
+      setNewEvent({ name: '', slug: '', eventDate: '' });
     } catch (error) {
       alert(error.response?.data?.message || 'Error creating event');
     }
@@ -98,6 +101,32 @@ const AdminPanel = () => {
         alert('Deletion failed. Please try again.');
       }
     }
+  };
+
+  const handleSetBanner = async (eventId) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      try {
+        setLoading(true);
+        const { data } = await selfieApi.getUploadUrl('event', eventId);
+        await fetch(data.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        });
+        await adminApi.updateEvent(eventId, { bannerUrl: data.fileUrl });
+        fetchEvents();
+      } catch (err) {
+        console.error('Banner upload failed', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fileInput.click();
   };
 
   const handleUpload = async (eventId) => {
@@ -124,10 +153,8 @@ const AdminPanel = () => {
     fileInput.click();
   };
 
-  // Derived Stats
   const totalEvents = events.length;
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || 0), 0);
-  const activeEvents = events.filter(e => e.status !== 'Inactive').length;
 
   if (!isAuthenticated) {
     return (
@@ -177,7 +204,6 @@ const AdminPanel = () => {
   return (
     <div className="min-h-screen bg-[#050505] flex overflow-hidden font-outfit text-white selection:bg-primary/30">
       
-      {/* Sidebar Navigation */}
       <aside className="w-72 bg-black border-r border-zinc-800 hidden lg:flex flex-col relative z-20">
         <div className="p-10 mb-8">
           <div className="flex items-center gap-3">
@@ -230,11 +256,9 @@ const AdminPanel = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative scroll-smooth p-6 lg:p-12">
         <div className="max-w-7xl mx-auto space-y-12">
           
-          {/* Header Strip */}
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-10 border-b border-zinc-900">
             <div>
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 mb-2">
@@ -267,10 +291,8 @@ const AdminPanel = () => {
             </motion.div>
           </header>
 
-          {/* Conditional Content Rendering */}
           {activeTab === 'dashboard' ? (
             <div className="space-y-12">
-              {/* Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {[ 
                    { label: 'Active Deployments', value: totalEvents, sub: 'High Priority', color: 'from-primary-dim to-primary' },
@@ -295,7 +317,6 @@ const AdminPanel = () => {
                 ))}
               </div>
 
-              {/* Event Content Section */}
               <div className="space-y-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -329,7 +350,14 @@ const AdminPanel = () => {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-black text-white mb-1 group-hover:text-primary transition-colors tracking-tight uppercase italic">{event.name}</h3>
-                                    <p className="text-zinc-500 text-xs font-mono font-medium tracking-wider lowercase">/{event.slug}</p>
+                                    <div className="flex items-center gap-3">
+                                      <p className="text-zinc-500 text-xs font-mono font-medium tracking-wider lowercase">/{event.slug}</p>
+                                      {event.eventDate && (
+                                        <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest bg-zinc-900 px-2 py-0.5 rounded">
+                                          {new Date(event.eventDate).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -359,6 +387,13 @@ const AdminPanel = () => {
                             >
                               <Upload size={18} strokeWidth={3} />
                               Inject Assets
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleSetBanner(event._id); }}
+                              className="p-4.5 text-primary bg-primary/5 border border-primary/10 rounded-2xl hover:bg-primary hover:text-black transition-all active:scale-95"
+                              title="Set Cover Picture"
+                            >
+                              <ImageIcon size={20} />
                             </button>
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event._id); }}
@@ -481,6 +516,15 @@ const AdminPanel = () => {
                       required
                     />
                   </div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] ml-2">Event Date</label>
+                  <input 
+                    type="date" 
+                    className="input-field bg-zinc-900 border-zinc-800 py-5 text-sm font-bold text-white uppercase" 
+                    value={newEvent.eventDate}
+                    onChange={e => setNewEvent({...newEvent, eventDate: e.target.value})}
+                  />
                 </div>
                 
                 <div className="pt-6 flex gap-4">

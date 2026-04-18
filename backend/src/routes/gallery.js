@@ -25,7 +25,16 @@ router.get('/:identifier', auth, async (req, res) => {
     if (!gallery) {
         return res.json({ photos: [], status: 'no_photos' });
     }
-    res.json({ photos: gallery.photoIds, status: 'ready' });
+    res.json({ 
+      photos: gallery.photoIds, 
+      event: {
+        name: event.name,
+        bannerUrl: event.bannerUrl,
+        eventDate: event.eventDate,
+        slug: event.slug
+      },
+      status: 'ready' 
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching gallery' });
   }

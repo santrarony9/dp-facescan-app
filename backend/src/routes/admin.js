@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const Event = require('../models/Event');
 const Photo = require('../models/Photo');
+const User = require('../models/User');
 const azureFace = require('../config/azure');
 const auth = require('../middleware/auth');
 const { detectionQueue } = require('../config/redis');
 
 // POST /api/admin/events (Admin Only - simplified)
 router.post('/events', auth, async (req, res) => {
-  const { name, slug, bannerUrl } = req.body;
+  const { name, slug, bannerUrl, eventDate } = req.body;
   
   try {
     // 1. Create Azure LargeFaceList
@@ -23,6 +24,7 @@ router.post('/events', auth, async (req, res) => {
       name,
       slug,
       bannerUrl,
+      eventDate,
       largeFaceListId
     });
 
@@ -116,6 +118,20 @@ router.delete('/events/:id', auth, async (req, res) => {
     res.json({ message: 'Event and all associated data deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting event', error: error.message });
+  }
+});
+
+// PUT /api/admin/events/:id (Update Event Details)
+router.put('/events/:id', auth, async (req, res) => {
+  try {
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+    res.json(updatedEvent);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating event', error: error.message });
   }
 });
 

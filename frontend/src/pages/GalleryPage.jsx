@@ -8,6 +8,7 @@ const GalleryPage = () => {
   const navigate = useNavigate();
   const [view, setView] = useState('grid');
   const [photos, setPhotos] = useState([]);
+  const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -23,6 +24,7 @@ const GalleryPage = () => {
     try {
       const res = await galleryApi.getGallery(slug);
       setPhotos(res.data.photos);
+      setEvent(res.data.event);
     } catch (error) {
       console.error('Failed to fetch gallery');
     } finally {
@@ -37,6 +39,25 @@ const GalleryPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleShareAlbum = async () => {
+    const shareData = {
+      title: `Dreamline VIP Gallery - ${event?.name}`,
+      text: `Access my VIP photo collection from ${event?.name}!`,
+      url: window.location.href
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert('Album link copied!');
+      }
+    } catch (err) {
+      console.error('Sharing failed', err);
+    }
   };
 
   const handleShare = async (photo) => {
@@ -65,10 +86,26 @@ const GalleryPage = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen bg-[#050505] p-4 pb-32 relative overflow-hidden"
     >
+      {/* Luxury Cover Picture (Banner) */}
+      {event?.bannerUrl && (
+        <div className="absolute top-0 left-0 w-full h-[60vh] z-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050505]/60 to-[#050505] z-10" />
+          <motion.img 
+            initial={{ scale: 1.1, opacity: 0 }}
+            animate={{ scale: 1, opacity: 0.4 }}
+            transition={{ duration: 1.5 }}
+            src={event.bannerUrl} 
+            className="w-full h-full object-cover grayscale-[0.5] hover:grayscale-0 transition-all duration-1000"
+          />
+        </div>
+      )}
+
       {/* Premium Ambience */}
-      <div className="bg-blob w-full h-[400px] bg-primary/10 top-0 left-1/2 -translate-x-1/2 opacity-30" />
+      {!event?.bannerUrl && (
+        <div className="bg-blob w-full h-[400px] bg-primary/10 top-0 left-1/2 -translate-x-1/2 opacity-30" />
+      )}
       
-      <header className="max-w-7xl mx-auto py-12 lg:py-20 flex flex-col md:flex-row md:items-end justify-between gap-8 relative z-10 border-b border-primary/10 mb-12">
+      <header className="max-w-7xl mx-auto py-12 lg:py-32 flex flex-col md:flex-row md:items-end justify-between gap-8 relative z-10 border-b border-white/5 mb-12">
         <motion.div
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -76,35 +113,49 @@ const GalleryPage = () => {
         >
           <div className="flex items-center gap-3 mb-4">
              <Sparkles className="text-primary w-5 h-5" />
-             <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px]">Dreamline Collection</span>
+             <span className="text-primary font-bold uppercase tracking-[0.4em] text-[10px]">
+               {event?.eventDate ? new Date(event.eventDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Dreamline Collection'}
+             </span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-outfit font-extrabold text-white mb-4 tracking-tighter italic uppercase">
-            VIP <span className="text-primary">Gallery</span>
+          <h1 className="text-5xl md:text-8xl font-outfit font-extrabold text-white mb-4 tracking-tighter italic uppercase">
+            {event?.name || 'VIP GALLERY'}
           </h1>
           <p className="text-zinc-500 text-sm font-medium">
             Secured access to <span className="text-primary font-bold">{photos.length}</span> high-fidelity captures.
           </p>
         </motion.div>
         
-        <motion.div 
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="flex items-center gap-2 bg-zinc-900/50 backdrop-blur-xl border border-primary/20 p-1.5 rounded-2xl shadow-inner"
-        >
-          <button 
-            onClick={() => setView('grid')}
-            className={`p-3 rounded-xl transition-all duration-500 ${view === 'grid' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <motion.button
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={handleShareAlbum}
+            className="flex items-center gap-3 px-8 py-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl text-white font-bold hover:bg-white/10 transition-all active:scale-95 group"
           >
-            <Grid size={20} />
-          </button>
-          <button 
-            onClick={() => setView('list')}
-            className={`p-3 rounded-xl transition-all duration-500 ${view === 'list' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+            <Share2 size={18} className="group-hover:rotate-12 transition-transform" />
+            <span className="text-xs uppercase tracking-widest">Share Album</span>
+          </motion.button>
+          
+          <motion.div 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8 }}
+            className="flex items-center gap-2 bg-zinc-900/50 backdrop-blur-xl border border-primary/20 p-1.5 rounded-2xl shadow-inner"
           >
-            <List size={20} />
-          </button>
-        </motion.div>
+            <button 
+              onClick={() => setView('grid')}
+              className={`p-3 rounded-xl transition-all duration-500 ${view === 'grid' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+            >
+              <Grid size={20} />
+            </button>
+            <button 
+              onClick={() => setView('list')}
+              className={`p-3 rounded-xl transition-all duration-500 ${view === 'list' ? 'bg-primary text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+            >
+              <List size={20} />
+            </button>
+          </motion.div>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto relative z-10 px-2">
