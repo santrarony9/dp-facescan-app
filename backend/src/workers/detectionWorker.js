@@ -53,7 +53,7 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
     console.error(`[DetectionWorker] Error processing photo ${photoId}:`, error.response?.data || error.message);
     // Optionally: marking as failed in the DB
   }
-}, { connection: redisConnection });
+}, { connection: redisConnection, concurrency: 2 });
 
 console.log('Face Detection Worker Started');
 

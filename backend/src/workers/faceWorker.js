@@ -58,6 +58,6 @@ const worker = new Worker('face-processing', async (job) => {
     console.error('[FaceWorker] Error:', error.response?.data || error.message);
     await User.findByIdAndUpdate(userId, { isProcessed: false }); // Allow retry
   }
-}, { connection: redisConnection });
+}, { connection: redisConnection, concurrency: 2 });
 
 console.log('Face Processing Worker Started');

@@ -1,10 +1,33 @@
 node_modules/
 .env
+.env.*
 .env.production
 .DS_Store
 dist/
 build/
+
+# Large binaries — NEVER commit these
 mongodb.msi
 redis.zip
 backend.tar.gz
+*.tar.gz
+*.msi
+*.zip
+
+# IDE and tool directories
 .gemini/
+.vercel
+
+# Deployment artifacts
+deploy_final/
+deploy_lean/
+
+# Error/debug logs
+error.log
+*.log
+push_error*
+github_error*
+
+# Duplicate frontend directories
+frontend/frontend/
+frontend/frontend_final/

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Photo = require('../models/Photo');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const { detectionQueue } = require('../config/redis');
 
 // POST /api/photos

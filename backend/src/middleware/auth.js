@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-module.exports = (req, res, next) => {
+const auth = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -16,3 +16,17 @@ module.exports = (req, res, next) => {
     res.status(400).json({ message: 'Invalid token.' });
   }
 };
+
+const adminAuth = (req, res, next) => {
+  auth(req, res, () => {
+    // For simplicity, we'll check if the role is NOT guest/client for admin routes
+    // Or if we specifically set role: 'admin' (requires admin login logic)
+    // Since we use a PIN on frontend, let's look for a specific header or role
+    if (req.user.role === 'guest' || req.user.role === 'client') {
+      return res.status(403).json({ message: 'Forbidden: Admin access required.' });
+    }
+    next();
+  });
+};
+
+module.exports = { auth, adminAuth };

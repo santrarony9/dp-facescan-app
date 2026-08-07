@@ -3,34 +3,31 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShoppingBag, ArrowLeft, Check, 
-  Trash2, MessageCircle, Info, Frame, 
-  Coffee, Key as KeyIcon, ChevronRight
+  Coffee, Key as KeyIcon, Frame, MessageCircle
 } from 'lucide-react';
+import Navbar from '../components/Navbar';
 
 const products = [
   {
     id: 'frame',
-    name: 'Premium Wood Frame',
+    name: 'Premium Teak Wood Frame',
     price: 999,
-    description: 'High-quality teak finish with anti-glare glass. Perfect for your VIP portrait.',
+    description: 'Teak finish with anti-glare museum glass. Custom sized for your VIP portrait.',
     icon: Frame,
-    image: 'https://images.unsplash.com/photo-1544457070-4cd773b4d71e?auto=format&fit=crop&q=80&w=400'
   },
   {
     id: 'mug',
-    name: 'Artisan Coffee Mug',
+    name: 'Artisan Ceramic Mug',
     price: 499,
-    description: 'Ceramic matte finish. Your memory, every morning.',
+    description: 'Matte black ceramic finish. Your memories on your desk every morning.',
     icon: Coffee,
-    image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&q=80&w=400'
   },
   {
     id: 'keyring',
-    name: 'Artisan Key Ring',
+    name: 'Polished Steel Key Ring',
     price: 299,
-    description: 'Polished steel with a miniature version of your capture.',
+    description: 'Polished stainless steel frame with acrylic-sealed portrait.',
     icon: KeyIcon,
-    image: 'https://images.unsplash.com/photo-1584622781564-1d9876a13d1e?auto=format&fit=crop&q=80&w=400'
   }
 ];
 
@@ -38,19 +35,19 @@ const MerchandisePage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const photoUrl = searchParams.get('photo');
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(products[0]);
   const userMobile = localStorage.getItem('userMobile') || '';
   const userName = localStorage.getItem('userName') || 'VIP Client';
 
   const handleOrder = () => {
     if (!selectedProduct) return;
     
-    const businessNumber = '919000000000'; // Placeholder - replace with actual number
-    const message = `Hello Dreamline AI! I'd like to order:
+    const businessNumber = '918240054002'; // Dreamline Official WhatsApp Number
+    const message = `Hello Dreamline Production! I would like to order custom merchandise:
 *Product:* ${selectedProduct.name}
 *Price:* ₹${selectedProduct.price}
 *Photo URL:* ${photoUrl}
-*Name:* ${userName}
+*Client Name:* ${userName}
 *Mobile:* ${userMobile}`;
     
     const whatsappUrl = `https://wa.me/${businessNumber}?text=${encodeURIComponent(message)}`;
@@ -58,56 +55,55 @@ const MerchandisePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-outfit p-4 lg:p-12 pb-32 overflow-hidden relative">
-      <div className="bg-blob w-full h-[500px] bg-primary/5 top-0 left-0 opacity-50 blur-[120px]" />
-      
-      <header className="max-w-6xl mx-auto flex items-center justify-between mb-16 relative z-10">
+    <div className="min-h-screen bg-[#050505] text-white font-outfit p-4 sm:p-8 pt-24 pb-20 overflow-hidden relative">
+      <Navbar />
+
+      <div className="max-w-5xl mx-auto flex items-center justify-between mb-8 sm:mb-12 relative z-10">
         <button 
           onClick={() => navigate(-1)}
-          className="p-4 rounded-2xl bg-zinc-900 border border-white/5 hover:border-primary/40 transition-all group"
+          className="p-3 rounded-full bg-white/5 border border-white/10 hover:border-[#c5a059] transition-all"
         >
-          <ArrowLeft className="group-hover:-translate-x-1 transition-transform" />
+          <ArrowLeft size={18} />
         </button>
         <div className="text-center">
-            <h1 className="text-3xl font-black uppercase italic tracking-tighter">Shopping Salon</h1>
-            <p className="text-[10px] text-primary font-bold uppercase tracking-[0.3em]">Merchandise & Prints</p>
+          <h1 className="text-2xl sm:text-4xl font-black uppercase italic tracking-tight">Merchandise Salon</h1>
+          <p className="text-xs sm:text-sm text-[#c5a059] font-bold uppercase tracking-[0.3em]">Personalized Keepsakes & Prints</p>
         </div>
-        <div className="w-12" /> {/* Spacer */}
-      </header>
+        <div className="w-10" />
+      </div>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 relative z-10">
+      <main className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 relative z-10">
         
-        {/* Left: Product Selection */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-black font-black text-xs">1</div>
-            <h2 className="text-xl font-black uppercase italic">Choose Your Product</h2>
+        {/* Product Selection */}
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-[#c5a059] flex items-center justify-center text-black font-black text-xs">1</div>
+            <h2 className="text-lg font-black uppercase italic">Select Product</h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {products.map((p) => (
               <motion.button
                 key={p.id}
-                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedProduct(p)}
-                className={`p-6 rounded-3xl border text-left transition-all duration-500 relative overflow-hidden group ${
+                className={`p-4 sm:p-5 rounded-2xl border text-left transition-all duration-300 relative overflow-hidden ${
                   selectedProduct?.id === p.id 
-                    ? 'bg-primary border-primary shadow-[0_0_40px_rgba(212,175,55,0.3)]' 
-                    : 'bg-zinc-900/50 border-white/10 hover:border-primary/40'
+                    ? 'bg-[#c5a059] text-black border-[#c5a059] shadow-[0_0_30px_rgba(197,160,89,0.3)]' 
+                    : 'bg-zinc-900/60 border-white/10 hover:border-[#c5a059]/40'
                 }`}
               >
-                <div className="flex items-center gap-6 relative z-10">
-                  <div className={`p-4 rounded-2xl transition-colors ${selectedProduct?.id === p.id ? 'bg-black text-primary' : 'bg-zinc-800 text-zinc-400 group-hover:text-primary'}`}>
-                    <p.icon size={28} />
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className={`p-3 rounded-xl ${selectedProduct?.id === p.id ? 'bg-black text-[#c5a059]' : 'bg-zinc-800 text-zinc-400'}`}>
+                    <p.icon size={22} />
                   </div>
                   <div className="flex-1">
-                    <h3 className={`text-lg font-black uppercase italic ${selectedProduct?.id === p.id ? 'text-black' : 'text-white'}`}>{p.name}</h3>
-                    <p className={`text-xs font-bold ${selectedProduct?.id === p.id ? 'text-black/60' : 'text-zinc-500'}`}>₹{p.price}</p>
+                    <h3 className={`text-sm sm:text-base font-black uppercase italic ${selectedProduct?.id === p.id ? 'text-black' : 'text-white'}`}>{p.name}</h3>
+                    <p className={`text-xs font-bold ${selectedProduct?.id === p.id ? 'text-black/70' : 'text-zinc-400'}`}>₹{p.price}</p>
                   </div>
                   {selectedProduct?.id === p.id && (
-                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center">
-                      <Check className="text-primary" size={16} />
+                    <div className="w-7 h-7 rounded-full bg-black flex items-center justify-center">
+                      <Check className="text-[#c5a059]" size={14} />
                     </div>
                   )}
                 </div>
@@ -116,81 +112,63 @@ const MerchandisePage = () => {
           </div>
         </div>
 
-        {/* Right: Live Preview */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-black font-black text-xs">2</div>
-            <h2 className="text-xl font-black uppercase italic">Live Rendering</h2>
+        {/* Live Preview */}
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-[#c5a059] flex items-center justify-center text-black font-black text-xs">2</div>
+            <h2 className="text-lg font-black uppercase italic">Live Preview</h2>
           </div>
 
-          <div className="aspect-square rounded-[3rem] bg-zinc-900 border border-primary/20 relative overflow-hidden flex items-center justify-center p-12 luxury-shine shadow-2xl">
+          <div className="aspect-square max-w-[340px] mx-auto rounded-3xl bg-zinc-900 border border-[#c5a059]/30 relative overflow-hidden flex items-center justify-center p-6 shadow-2xl">
              <AnimatePresence mode="wait">
-                {!selectedProduct ? (
-                  <motion.div 
-                    key="placeholder"
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="text-center space-y-4"
-                  >
-                    <ShoppingBag className="w-16 h-16 text-zinc-800 mx-auto" />
-                    <p className="text-zinc-600 text-xs font-bold uppercase tracking-widest">Select a product to preview</p>
-                  </motion.div>
-                ) : (
+                {selectedProduct && (
                   <motion.div 
                     key={selectedProduct.id}
-                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                     className="relative w-full h-full flex items-center justify-center"
                   >
-                     {/* Dynamic Mockup Content */}
-                     <div className="relative z-10 w-full h-full">
-                        {selectedProduct.id === 'frame' && (
-                           <div className="w-full h-full border-[12px] border-black shadow-2xl p-4 bg-white/5">
-                              <img src={photoUrl} className="w-full h-full object-cover grayscale-[0.2]" alt="Preview" />
-                           </div>
-                        )}
-                        {selectedProduct.id === 'mug' && (
-                           <div className="w-full h-full flex flex-col items-center justify-center">
-                             <div className="w-48 h-64 bg-zinc-800 rounded-t-[4rem] rounded-b-[2rem] border-4 border-zinc-700 relative overflow-hidden flex items-center justify-center">
-                                <img src={photoUrl} className="w-full h-40 object-cover opacity-80" alt="Preview" />
-                                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-black/20 via-transparent to-black/20" />
-                             </div>
-                             <div className="w-16 h-24 border-r-8 border-t-8 border-b-8 border-zinc-700 rounded-r-full -mr-40 -mt-48 z-0" />
-                           </div>
-                        )}
-                        {selectedProduct.id === 'keyring' && (
-                           <div className="w-full h-full flex flex-col items-center justify-center">
-                              <div className="w-12 h-12 border-4 border-zinc-400 rounded-full mb-2" />
-                              <div className="w-32 h-48 bg-zinc-400 rounded-2xl p-1 shadow-2xl">
-                                 <img src={photoUrl} className="w-full h-full object-cover rounded-xl" alt="Preview" />
-                              </div>
-                           </div>
-                        )}
-                     </div>
-                     <div className="absolute inset-0 bg-primary/5 blur-[80px] rounded-full" />
+                    {selectedProduct.id === 'frame' && (
+                       <div className="w-full h-full border-[10px] border-black shadow-2xl p-2 bg-white/5">
+                          <img src={photoUrl} className="w-full h-full object-cover" alt="Preview" />
+                       </div>
+                    )}
+                    {selectedProduct.id === 'mug' && (
+                       <div className="w-full h-full flex flex-col items-center justify-center">
+                         <div className="w-36 h-48 bg-zinc-800 rounded-t-[3rem] rounded-b-[1.5rem] border-4 border-zinc-700 relative overflow-hidden flex items-center justify-center">
+                            <img src={photoUrl} className="w-full h-32 object-cover opacity-85" alt="Preview" />
+                         </div>
+                       </div>
+                    )}
+                    {selectedProduct.id === 'keyring' && (
+                       <div className="w-full h-full flex flex-col items-center justify-center">
+                          <div className="w-10 h-10 border-4 border-zinc-400 rounded-full mb-2" />
+                          <div className="w-28 h-40 bg-zinc-400 rounded-xl p-1 shadow-2xl">
+                             <img src={photoUrl} className="w-full h-full object-cover rounded-lg" alt="Preview" />
+                          </div>
+                       </div>
+                    )}
                   </motion.div>
                 )}
              </AnimatePresence>
           </div>
 
           {selectedProduct && (
-            <div className="space-y-6">
-                <div className="bg-zinc-900/80 border border-white/5 p-6 rounded-3xl">
-                   <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-2">Item Specifications</h4>
-                   <p className="text-sm text-white/80 leading-relaxed font-medium">{selectedProduct.description}</p>
+            <div className="space-y-4">
+                <div className="bg-zinc-900/60 border border-white/10 p-4 rounded-2xl">
+                   <p className="text-xs text-zinc-300 leading-relaxed font-medium">{selectedProduct.description}</p>
                 </div>
                 
                 <button 
                   onClick={handleOrder}
-                  className="w-full btn-primary py-6 rounded-3xl shadow-[0_20px_40px_rgba(212,175,55,0.3)] flex items-center justify-center gap-4 group"
+                  className="btn-primary w-full py-4 text-xs rounded-full shadow-[0_10px_25px_rgba(197,160,89,0.35)] flex items-center justify-center gap-2"
                 >
-                   <span className="text-sm font-black italic">ORDER VIA WHATSAPP (₹{selectedProduct.price})</span>
-                   <MessageCircle size={22} className="group-hover:rotate-12 transition-transform" />
+                   <MessageCircle size={18} />
+                   <span>ORDER VIA WHATSAPP (₹{selectedProduct.price})</span>
                 </button>
-                <p className="text-center text-[10px] text-zinc-600 font-bold uppercase tracking-widest italic">Secure Direct-to-Artist Ordering</p>
             </div>
           )}
         </div>
       </main>
-
     </div>
   );
 };

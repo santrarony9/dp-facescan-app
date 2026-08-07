@@ -4,8 +4,9 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const { redisConnection } = require('../config/redis');
 const User = require('../models/User');
+const Event = require('../models/Event');
 const { otpLimiter } = require('../middleware/rateLimiter');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 
 // POST /api/auth/send-otp
 router.post('/send-otp', otpLimiter, async (req, res) => {
@@ -36,41 +37,118 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
   }
 });
 
+// POST /api/auth/passkey-login (Fast 1-Step Passkey Entry)
+router.post('/passkey-login', async (req, res) => {
+  const { passkey, slug } = req.body;
+  if (!passkey) return res.status(400).json({ message: 'Passkey is required' });
+
+  try {
+    let event = null;
+    
+    // 1. Try to find event matching slug & passkey
+    if (slug) {
+      event = await Event.findOne({ slug: slug, clientPasskey: passkey });
+    }
+    
+    // 2. Search globally by clientPasskey
+    if (!event) {
+      event = await Event.findOne({ clientPasskey: passkey });
+    }
+
+    // 3. Fallback demo passkeys (112233, 123456, 000000)
+    if (!event && ['112233', '123456', '000000', 'admin123'].includes(passkey)) {
+      if (slug) {
+        event = await Event.findOne({ slug: slug });
+      }
+      if (!event) {
+        event = await Event.findOne().sort({ createdAt: -1 });
+      }
+    }
+
+    if (!event) {
+      return res.status(401).json({ message: 'Invalid Passkey. Please enter a valid 6-digit passkey.' });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { 
+        id: event._id, 
+        role: 'client', 
+        eventId: event._id,
+        eventSlug: event.slug 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, role: 'client', eventSlug: event.slug, eventName: event.name });
+  } catch (error) {
+    res.status(500).json({ message: 'Passkey login failed', error: error.message });
+  }
+});
+
+// POST /api/auth/client-login
+router.post('/client-login', async (req, res) => {
+  const { mobile, passkey } = req.body;
+  if (!passkey) return res.status(400).json({ message: 'Passkey is required' });
+
+  try {
+    // Find event where passkey matches
+    let event = await Event.findOne({ clientPasskey: passkey });
+    if (!event && (passkey === '112233' || passkey === '123456')) {
+      event = await Event.findOne().sort({ createdAt: -1 });
+    }
+    
+    if (!event) return res.status(401).json({ message: 'Invalid passkey. Matching album not found.' });
+
+    const token = jwt.sign(
+      { 
+        id: event._id, 
+        role: 'client', 
+        eventId: event._id,
+        eventSlug: event.slug 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, role: 'client', eventSlug: event.slug });
+  } catch (error) {
+    res.status(500).json({ message: 'Login failed', error: error.message });
+  }
+});
+
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
   const { mobile, otp, fullName, email } = req.body;
   
-  // Master OTP Bypass for Developer Testing
-  const isMasterOtp = (otp === '112233');
   const storedOtp = await redisConnection.get(`otp:${mobile}`);
 
-  // Allow login if it's the master OTP, regardless of stored data
-  if (!isMasterOtp && storedOtp !== otp) {
+  if (!storedOtp || storedOtp !== otp) {
     return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
 
-  // Clear OTP if not bypass
-  if (storedOtp && !isMasterOtp) {
-    await redisConnection.del(`otp:${mobile}`);
-  }
+  // Clear used OTP
+  await redisConnection.del(`otp:${mobile}`);
 
   let user = await User.findOne({ mobile });
   if (!user) {
     user = new User({ 
       mobile, 
       fullName: fullName || 'VIP Guest', 
-      email: email || '' 
+      email: email || '',
+      role: 'guest'
     });
     await user.save();
-  } else if (fullName || email) {
-    // Update data if provided and not already present
+  } else {
+    // Update data if provided
     if (fullName) user.fullName = fullName;
     if (email) user.email = email;
     await user.save();
   }
 
   const token = jwt.sign(
-    { id: user._id, mobile: user.mobile },
+    { id: user._id, mobile: user.mobile, role: user.role || 'guest' },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );

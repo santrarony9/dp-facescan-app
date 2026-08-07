@@ -1,11 +1,15 @@
 import axios from 'axios';
 
-const isLocallyHosted = window.location.hostname === 'localhost';
+const isLocalHost = 
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname.startsWith('192.168.') || 
+  window.location.hostname.startsWith('10.');
 
 const api = axios.create({
-  baseURL: isLocallyHosted 
-    ? (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
-    : 'https://api.dreamlineproduction.com/api',
+  baseURL: import.meta.env.VITE_API_URL 
+    ? import.meta.env.VITE_API_URL 
+    : (isLocalHost ? `http://${window.location.hostname}:5000/api` : 'https://api.dreamlineproduction.com/api'),
 });
 
 // Add token to requests
@@ -20,6 +24,8 @@ api.interceptors.request.use((config) => {
 export const authApi = {
   sendOtp: (mobile) => api.post('/auth/send-otp', { mobile }),
   verifyOtp: (mobile, otp, fullName, email) => api.post('/auth/verify-otp', { mobile, otp, fullName, email }),
+  clientLogin: (mobile, passkey) => api.post('/auth/client-login', { mobile, passkey }),
+  passkeyLogin: (passkey, slug) => api.post('/auth/passkey-login', { passkey, slug }),
   getStatus: () => api.get('/auth/status'),
 };
 
@@ -31,6 +37,8 @@ export const adminApi = {
   trainEvent: (eventId) => api.post(`/admin/events/${eventId}/train`),
   getLeads: () => api.get('/admin/leads'),
   uploadPhotos: (eventId, images) => api.post('/admin/photos/bulk', { eventId, images }),
+  uploadProof: (eventId, pdfUrl) => api.post(`/admin/events/${eventId}/proof`, { pdfUrl }),
+  getDownloadZipUrl: (eventId) => `${api.defaults.baseURL}/admin/events/${eventId}/download-zip`,
 };
 
 export const selfieApi = {
@@ -39,7 +47,11 @@ export const selfieApi = {
 };
 
 export const galleryApi = {
+  getPublicEvents: () => api.get('/gallery/public/events'),
   getGallery: (eventId) => api.get(`/gallery/${eventId}`),
+  selectPhoto: (photoId) => api.post(`/gallery/${photoId}/select`),
+  submitFeedback: (eventId, comment) => api.post(`/gallery/${eventId}/feedback`, { comment }),
+  approveAlbum: (eventId) => api.post(`/gallery/${eventId}/approve`)
 };
 
 export default api;

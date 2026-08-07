@@ -1,0 +1,13 @@
+backend/
+local_assets/
+db/
+.git/
+node_modules/
+backend_old/
+uploads/
+temp/
+*.msi
+*.tar.gz
+*.zip
+deploy_final/
+deploy_lean/

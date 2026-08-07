@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # AlmaLinux 9 VPS Setup Script for DP Face Scan App
-# This script installs Node.js, MongoDB, Redis, and clones the repository.
+# This script installs Node.js, MongoDB, Redis, and sets up the project.
+# IMPORTANT: After running this script, fill in your API keys in backend/.env
 
 # 1. Update system
 echo "Updating system..."
@@ -38,23 +39,33 @@ sudo dnf install -y git
 mkdir -p ~/DPFaceScan
 cd ~/DPFaceScan
 
-# 7. Clone Repository (Placeholder - replace with actual repo if needed)
+# 7. Clone Repository (replace with your actual repo URL)
 # git clone https://github.com/santrarony9/dp-facescan-app.git .
 
-# 8. Create .env file for Backend
+# 8. Create .env file for Backend (FILL IN YOUR KEYS AFTER SETUP!)
 echo "Creating .env configuration..."
-# Note: Use environment variables for secrets during deployment
 cat <<EOF > backend/.env
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/dp_facescan
-JWT_SECRET=$(openssl rand -base64 32)
-AWS_ACCESS_KEY_ID=""
-AWS_SECRET_ACCESS_KEY=""
-AWS_REGION=ap-south-2
-AWS_S3_BUCKET=dreamlinepro
-AZURE_FACE_KEY=""
-AZURE_FACE_ENDPOINT=https://facescan-dp.cognitiveservices.azure.com/
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=$(openssl rand -base64 48)
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=
+AZURE_FACE_KEY=
+AZURE_FACE_ENDPOINT=
+MSG91_AUTH_KEY=
+MSG91_TEMPLATE_ID=
+VPS_HOST=
+VPS_USER=root
+VPS_PASSWORD=
 EOF
+
+echo ""
+echo "⚠️  IMPORTANT: Edit backend/.env and fill in your AWS, Azure, and other API keys!"
+echo "   nano ~/DPFaceScan/backend/.env"
+echo ""
 
 # 9. Install Backend Dependencies and Start with PM2
 sudo npm install -g pm2
@@ -66,4 +77,9 @@ pm2 save
 echo "------------------------------------------------"
 echo "SETUP COMPLETE! Your backend is running on PM2."
 echo "Check logs with: pm2 logs facescan-backend"
+echo ""
+echo "NEXT STEPS:"
+echo "  1. Edit backend/.env with your real API keys"
+echo "  2. Run: pm2 restart facescan-backend"
+echo "  3. Setup Nginx reverse proxy + SSL with certbot"
 echo "------------------------------------------------"

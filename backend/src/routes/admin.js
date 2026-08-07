@@ -4,12 +4,15 @@ const Event = require('../models/Event');
 const Photo = require('../models/Photo');
 const User = require('../models/User');
 const azureFace = require('../config/azure');
-const auth = require('../middleware/auth');
+const { adminAuth } = require('../middleware/auth');
+const axios = require('axios');
+const archiver = require('archiver');
+const AlbumProof = require('../models/AlbumProof');
 const { detectionQueue } = require('../config/redis');
 
 // POST /api/admin/events (Admin Only - simplified)
-router.post('/events', auth, async (req, res) => {
-  const { name, slug, bannerUrl, eventDate } = req.body;
+router.post('/events', adminAuth, async (req, res) => {
+  const { name, slug, bannerUrl, eventDate, clientName, clientPhone } = req.body;
   
   try {
     // 1. Create Azure LargeFaceList
@@ -25,6 +28,8 @@ router.post('/events', auth, async (req, res) => {
       slug,
       bannerUrl,
       eventDate,
+      clientName,
+      clientPhone,
       largeFaceListId
     });
 
@@ -37,7 +42,7 @@ router.post('/events', auth, async (req, res) => {
 });
 
 // POST /api/admin/photos/bulk
-router.post('/photos/bulk', auth, async (req, res) => {
+router.post('/photos/bulk', adminAuth, async (req, res) => {
   const { eventId, images } = req.body; // images = array of strings (urls)
   
   try {
@@ -79,7 +84,7 @@ router.post('/photos/bulk', auth, async (req, res) => {
 });
 
 // GET /api/admin/events
-router.get('/events', auth, async (req, res) => {
+router.get('/events', adminAuth, async (req, res) => {
   const events = await Event.find().lean();
   const eventIds = events.map(e => e._id);
   
@@ -97,7 +102,7 @@ router.get('/events', auth, async (req, res) => {
 });
 
 // DELETE /api/admin/events/:id
-router.delete('/events/:id', auth, async (req, res) => {
+router.delete('/events/:id', adminAuth, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -122,7 +127,7 @@ router.delete('/events/:id', auth, async (req, res) => {
 });
 
 // PUT /api/admin/events/:id (Update Event Details)
-router.put('/events/:id', auth, async (req, res) => {
+router.put('/events/:id', adminAuth, async (req, res) => {
   try {
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,
@@ -136,7 +141,7 @@ router.put('/events/:id', auth, async (req, res) => {
 });
 
 // POST /api/admin/events/:id/train (Manual trigger)
-router.post('/events/:id/train', auth, async (req, res) => {
+router.post('/events/:id/train', adminAuth, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -148,13 +153,77 @@ router.post('/events/:id/train', auth, async (req, res) => {
   }
 });
 
-// GET /api/admin/leads
-router.get('/leads', auth, async (req, res) => {
+// GET /api/admin/events/:id/download-zip (Internal Design Use)
+router.get('/events/:id/download-zip', adminAuth, async (req, res) => {
   try {
-    const leads = await User.find().sort({ createdAt: -1 });
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const selectedPhotos = await Photo.find({ eventId: event._id, isSelected: true });
+    if (selectedPhotos.length === 0) {
+      return res.status(400).json({ message: 'No photos selected for this album' });
+    }
+
+    const fileName = `${event.clientName || 'Client'}_${event.name}.zip`.replace(/[^a-z0-9.]/gi, '_');
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.pipe(res);
+
+    for (const photo of selectedPhotos) {
+      try {
+        const response = await axios.get(photo.imageUrl, { 
+          responseType: 'stream',
+          timeout: 10000 // 10s timeout per photo
+        });
+        const name = photo.imageUrl.split('/').pop() || `photo_${photo._id}.jpg`;
+        archive.append(response.data, { name });
+      } catch (err) {
+        console.error(`Failed to stream photo ${photo.imageUrl}: ${err.message}`);
+        // We continue to next photo instead of failing the whole ZIP
+      }
+    }
+
+    archive.finalize();
+  } catch (error) {
+    res.status(500).json({ message: 'ZIP generation failed', error: error.message });
+  }
+});
+
+// POST /api/admin/events/:id/proof (Upload Album Proof)
+router.post('/events/:id/proof', adminAuth, async (req, res) => {
+  const { pdfUrl } = req.body;
+  if (!pdfUrl) return res.status(400).json({ message: 'PDF URL is required' });
+
+  try {
+    const proof = new AlbumProof({
+      eventId: req.params.id,
+      pdfUrl
+    });
+    await proof.save();
+    
+    // Update event status
+    await Event.findByIdAndUpdate(req.params.id, { albumStatus: 'Proofing' });
+
+    res.status(201).json(proof);
+  } catch (error) {
+    res.status(500).json({ message: 'Proof upload failed' });
+  }
+});
+
+// GET /api/admin/leads (Guest Lead Data for CRM)
+router.get('/leads', adminAuth, async (req, res) => {
+  try {
+    const leads = await User.find({ role: { $in: ['guest', 'client'] } })
+      .select('fullName mobile email role eventId createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+
     res.json(leads);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching leads' });
+    res.status(500).json({ message: 'Error fetching leads', error: error.message });
   }
 });
 

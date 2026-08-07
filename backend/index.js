@@ -5,17 +5,24 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors({
-  origin: [
-    'https://app.dreamlineproduction.com',
-    /\.vercel\.app$/, // Allow all Vercel deployments
-    'http://localhost:5173',
-    'http://localhost:3000'
-  ],
+  origin: (origin, callback) => {
+    if (
+      !origin || 
+      origin.includes('dreamlineproduction.com') || 
+      origin.includes('vercel.app') || 
+      origin.includes('localhost') || 
+      origin.includes('127.0.0.1') || 
+      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)
+    ) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Fallback allow in dev
+    }
+  },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Public Health Check
 app.get('/', (req, res) => res.json({ message: 'Dreamline API is Live 🚀', version: '1.0.0' }));
@@ -32,6 +39,15 @@ app.use('/api/photos', require('./src/routes/photo'));
 // Workers (Starting background processes)
 require('./src/workers/faceWorker');
 require('./src/workers/detectionWorker');
+
+// Global Error Handler — prevents unhandled errors from crashing the server
+app.use((err, req, res, next) => {
+  console.error('💥 Unhandled Error:', err.stack || err.message || err);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
 
 // DB Connection
 mongoose.connect(process.env.MONGODB_URI)

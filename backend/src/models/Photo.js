@@ -5,6 +5,7 @@ const PhotoSchema = new mongoose.Schema({
   imageUrl: { type: String, required: true },
   faceIds: [{ type: String }], // Azure Face IDs
   isProcessed: { type: Boolean, default: false },
+  isSelected: { type: Boolean, default: false }, // Client selection for physical album
   createdAt: { type: Date, default: Date.now }
 });
 

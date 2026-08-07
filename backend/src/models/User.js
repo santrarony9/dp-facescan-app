@@ -4,6 +4,7 @@ const UserSchema = new mongoose.Schema({
   mobile: { type: String, required: true, unique: true },
   fullName: { type: String },
   email: { type: String },
+  role: { type: String, enum: ['admin', 'guest', 'client'], default: 'guest' },
   eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
   personId: { type: String }, // Azure Person ID
   isProcessed: { type: Boolean, default: false },

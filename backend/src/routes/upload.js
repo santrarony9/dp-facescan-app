@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const s3 = require('../config/aws');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 
 // GET /api/upload/url?type=selfie&eventId=...

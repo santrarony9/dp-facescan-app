@@ -1,14 +1,22 @@
 const { NodeSSH } = require('node-ssh');
+require('dotenv').config();
 const ssh = new NodeSSH();
 
+// VPS credentials from environment variables — NEVER hardcode these
 const config = {
-  host: '160.187.68.243',
-  username: 'root',
-  password: 'Bm0y431YQKrf6iI'
+  host: process.env.VPS_HOST,
+  username: process.env.VPS_USER || 'root',
+  password: process.env.VPS_PASSWORD
 };
+
+if (!config.host || !config.password) {
+  console.error('❌ Missing VPS credentials. Set VPS_HOST and VPS_PASSWORD in your .env file.');
+  process.exit(1);
+}
 
 async function main() {
   try {
+    console.log(`Connecting to VPS (${config.host})...`);
     await ssh.connect(config);
     console.log('Connected to VPS!');
 
