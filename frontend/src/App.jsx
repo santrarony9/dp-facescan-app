@@ -10,17 +10,7 @@ import MerchandisePage from './pages/MerchandisePage';
 import AlbumProofingPage from './pages/AlbumProofingPage';
 import './index.css';
 
-// Protected Route for Album Access
-const ProtectedScanRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  const location = useLocation();
-  
-  if (!token) {
-    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
-  }
-  
-  return children;
-};
+import ProtectedScanRoute from './components/ProtectedScanRoute';
 
 const AnimatedRoutes = () => {
   const location = useLocation();
