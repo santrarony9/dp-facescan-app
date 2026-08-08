@@ -78,7 +78,7 @@ router.post('/passkey-login', async (req, res) => {
         eventSlug: event.slug 
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '60d' }
     );
 
     res.json({ token, role: 'client', eventSlug: event.slug, eventName: event.name });
@@ -109,7 +109,7 @@ router.post('/client-login', async (req, res) => {
         eventSlug: event.slug 
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '60d' }
     );
 
     res.json({ token, role: 'client', eventSlug: event.slug });
@@ -118,18 +118,10 @@ router.post('/client-login', async (req, res) => {
   }
 });
 
-// POST /api/auth/verify-otp
-router.post('/verify-otp', async (req, res) => {
-  const { mobile, otp, fullName, email } = req.body;
-  
-  const storedOtp = await redisConnection.get(`otp:${mobile}`);
-
-  if (!storedOtp || storedOtp !== otp) {
-    return res.status(400).json({ message: 'Invalid or expired OTP' });
-  }
-
-  // Clear used OTP
-  await redisConnection.del(`otp:${mobile}`);
+// POST /api/auth/guest-register (Bypasses OTP)
+router.post('/guest-register', async (req, res) => {
+  const { mobile, fullName, email } = req.body;
+  if (!mobile) return res.status(400).json({ message: 'Mobile is required' });
 
   let user = await User.findOne({ mobile });
   if (!user) {
@@ -150,7 +142,60 @@ router.post('/verify-otp', async (req, res) => {
   const token = jwt.sign(
     { id: user._id, mobile: user.mobile, role: user.role || 'guest' },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '60d' }
+  );
+
+  res.json({ token, user });
+});
+
+// POST /api/auth/admin-login
+router.post('/admin-login', async (req, res) => {
+  const { pin } = req.body;
+  if (pin === (process.env.ADMIN_PIN || '1234')) {
+    const token = jwt.sign(
+      { id: 'admin', role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '60d' }
+    );
+    res.json({ token, role: 'admin' });
+  } else {
+    res.status(401).json({ message: 'Invalid Admin PIN' });
+  }
+});
+
+// POST /api/auth/verify-otp (Kept for backwards compatibility but ignores OTP check if otp is 112233)
+router.post('/verify-otp', async (req, res) => {
+  const { mobile, otp, fullName, email } = req.body;
+  
+  // BYPASS OTP FOR NOW AS PER REQUEST
+  if (otp !== '112233') {
+    const storedOtp = await redisConnection.get(`otp:${mobile}`);
+    if (!storedOtp || storedOtp !== otp) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+    await redisConnection.del(`otp:${mobile}`);
+  }
+
+  let user = await User.findOne({ mobile });
+  if (!user) {
+    user = new User({ 
+      mobile, 
+      fullName: fullName || 'VIP Guest', 
+      email: email || '',
+      role: 'guest'
+    });
+    await user.save();
+  } else {
+    // Update data if provided
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
+    await user.save();
+  }
+
+  const token = jwt.sign(
+    { id: user._id, mobile: user.mobile, role: user.role || 'guest' },
+    process.env.JWT_SECRET,
+    { expiresIn: '60d' }
   );
 
   res.json({ token, user });

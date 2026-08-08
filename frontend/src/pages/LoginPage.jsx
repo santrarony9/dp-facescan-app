@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ShieldCheck, KeyRound, ArrowRight, Sparkles } from 'lucide-react';
+import { ShieldCheck, KeyRound, ArrowRight, Sparkles, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { authApi } from '../api/api';
 import Navbar from '../components/Navbar';
@@ -12,11 +12,32 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect');
+  const eventSlug = searchParams.get('event');
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    if (token && role === 'client' && eventSlug) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.eventSlug === eventSlug) {
+          // Token is for this event, auto-login!
+          if (redirectPath) {
+            navigate(decodeURIComponent(redirectPath));
+          } else {
+            navigate(`/${eventSlug}/gallery`);
+          }
+        }
+      } catch (e) {
+        // Invalid token format, ignore
+      }
+    }
+  }, [eventSlug, navigate, redirectPath]);
 
   const handlePasskeyLogin = async (e) => {
     if (e) e.preventDefault();
     if (!passkey || passkey.length < 4) {
-      setErrorMsg('Please enter your 6-digit passkey.');
+      setErrorMsg('Please enter your passkey.');
       return;
     }
     
@@ -44,41 +65,41 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-24 pb-12 relative overflow-hidden bg-[#050505] font-outfit">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-24 pb-12 relative overflow-hidden bg-slate-50 font-outfit text-slate-900">
       <Navbar />
 
-      {/* Radial Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] bg-[#c5a059]/10 rounded-full blur-[100px] pointer-events-none" />
+      {/* Clean Background Gradient */}
+      <div className="absolute top-0 inset-x-0 h-full bg-gradient-to-b from-blue-50 to-slate-50 pointer-events-none" />
 
       <motion.div 
-        initial={{ opacity: 0, y: 25 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="glass-card w-full max-w-md relative z-10 my-auto text-center"
+        className="w-full max-w-md relative z-10 my-auto text-center bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-sm"
       >
-        <div className="mb-6 sm:mb-8">
-          <div className="w-12 h-12 rounded-full bg-[#c5a059]/10 border border-[#c5a059]/40 flex items-center justify-center mx-auto mb-3 text-[#c5a059] shadow-[0_0_20px_rgba(197,160,89,0.2)]">
-             <KeyRound size={24} />
+        <div className="mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-4 text-blue-600 shadow-sm">
+             <KeyRound size={28} />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight italic">
-            DREAMLINE <span className="text-[#c5a059]">PASSKEY</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Secure Access
           </h1>
-          <p className="text-zinc-400 text-xs sm:text-sm uppercase tracking-[0.25em] font-bold mt-1">
-            Fast 1-Step Album Verification
+          <p className="text-slate-500 text-sm font-medium mt-2">
+            Enter your secure passkey to view your album
           </p>
         </div>
 
-        <form onSubmit={handlePasskeyLogin} className="space-y-4 text-left">
-          <div className="space-y-1">
-            <label className="text-xs sm:text-sm font-black text-zinc-400 uppercase tracking-widest ml-1">
-              Enter 6-Digit Passkey
+        <form onSubmit={handlePasskeyLogin} className="space-y-5 text-left">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Passkey
             </label>
             <div className="relative">
-              <KeyRound size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a059]" />
+              <KeyRound size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="password" 
                 placeholder="••••••" 
-                className="input-field pl-11 py-3 text.sm sm:text-base bg-white/5 border-white/10 focus:border-[#c5a059] tracking-[0.5em] font-bold text-center" 
+                className="w-full pl-12 py-3.5 text-base sm:text-lg bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all tracking-[0.5em] font-bold text-center text-slate-900" 
                 value={passkey}
                 onChange={e => setPasskey(e.target.value)}
                 autoFocus
@@ -88,27 +109,39 @@ const LoginPage = () => {
           </div>
 
           {errorMsg && (
-            <p className="text-red-400 text-xs font-bold text-center pt-1">{errorMsg}</p>
+            <p className="text-red-500 text-xs font-bold text-center pt-1">{errorMsg}</p>
           )}
 
           <button 
             type="submit"
             disabled={loading}
-            className="btn-primary w-full py-4 text-xs rounded-full mt-4 shadow-[0_10px_25px_rgba(197,160,89,0.35)]"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? 'Unlocking Album...' : 'Unlock & Access Gallery'}
+            {loading ? 'Unlocking...' : 'Unlock Gallery'}
             <ArrowRight size={16} />
           </button>
         </form>
 
-        <div className="pt-6 border-t border-white/10 mt-6 flex items-center justify-between text-sm">
-          <span className="text-zinc-500 font-bold uppercase tracking-wider">Demo Code: <span className="text-[#c5a059]">112233</span></span>
-          <button 
-            onClick={() => navigate('/')} 
-            className="text-zinc-400 hover:text-white font-bold uppercase tracking-wider underline"
-          >
-            Browse All Albums
-          </button>
+        <div className="pt-6 border-t border-slate-100 mt-8 flex flex-col items-center gap-4 text-sm">
+          {searchParams.get('event') && (
+            <button 
+              onClick={() => navigate(`/${searchParams.get('event')}/selfie`)}
+              className="w-full py-3 bg-slate-50 border border-slate-200 text-slate-600 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            >
+              <Camera size={18} />
+              Guest? Find Photos via Face Scan
+            </button>
+          )}
+          
+          <div className="flex w-full items-center justify-between mt-2">
+            <span className="text-slate-400 font-medium text-xs">Demo Passkey: <span className="font-bold text-slate-600">112233</span></span>
+            <button 
+              onClick={() => navigate('/')} 
+              className="text-blue-600 hover:text-blue-700 font-bold text-xs"
+            >
+              Back to Albums
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
