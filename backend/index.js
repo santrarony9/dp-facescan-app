@@ -35,6 +35,7 @@ app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/selfie', require('./src/routes/selfie'));
 app.use('/api/gallery', require('./src/routes/gallery'));
 app.use('/api/photos', require('./src/routes/photo'));
+app.use('/api/payment', require('./src/routes/payment'));
 
 // Workers (Starting background processes)
 require('./src/workers/faceWorker');
