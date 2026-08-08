@@ -3,7 +3,7 @@ import {
   Plus, Upload, Trash2, Camera, LayoutDashboard, 
   Settings, Users, Activity, X, Image as ImageIcon,
   LogOut, Search, Download, Shield, Calendar, ChevronRight, CheckCircle2,
-  Menu, Edit2, Share2
+  Menu, Edit2, Share2, Droplet, Stamp, Archive
 } from 'lucide-react';
 import { adminApi, selfieApi, authApi } from '../api/api';
 import imageCompression from 'browser-image-compression';
@@ -169,6 +169,39 @@ const AdminPanel = () => {
       }
     };
     fileInput.click();
+  };
+
+  const handleSetWatermark = async (eventId) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/png';
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      try {
+        setLoading(true);
+        const { data } = await selfieApi.getUploadUrl('event', eventId);
+        await fetch(data.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        });
+        await adminApi.updateEvent(eventId, { watermarkUrl: data.fileUrl });
+        fetchEvents();
+        alert('Watermark logo uploaded successfully!');
+      } catch (err) {
+        console.error('Watermark upload failed', err);
+        alert('Failed to upload watermark');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fileInput.click();
+  };
+
+  const handleDownloadZip = (eventId) => {
+    window.open(adminApi.getDownloadZipUrl(eventId), '_blank');
   };
 
   const handleExportLocally = async (event) => {
@@ -568,11 +601,25 @@ const AdminPanel = () => {
                                       <ImageIcon size={16} />
                                     </button>
                                     <button 
+                                      onClick={() => handleSetWatermark(event._id)}
+                                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                                      title="Set Watermark Logo (PNG)"
+                                    >
+                                      <Stamp size={16} />
+                                    </button>
+                                    <button 
                                       onClick={() => handleExportLocally(event)}
                                       className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
                                       title="Export Local Originals"
                                     >
                                       <Download size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDownloadZip(event._id)}
+                                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-100"
+                                      title="Download Wishlist (ZIP)"
+                                    >
+                                      <Archive size={16} />
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteEvent(event._id)}

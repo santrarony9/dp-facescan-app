@@ -125,14 +125,27 @@ router.get('/events', adminAuth, async (req, res) => {
           Key: key,
           Expires: 3600
         });
-      } catch (err) {
-        // keep original if parsing fails
-      }
+      } catch (err) {}
+    }
+
+    // Sign watermark URL
+    let signedWatermarkUrl = e.watermarkUrl;
+    if (signedWatermarkUrl && signedWatermarkUrl.startsWith('http')) {
+      try {
+        const url = new URL(signedWatermarkUrl);
+        const key = decodeURIComponent(url.pathname.slice(1));
+        signedWatermarkUrl = require('../config/aws').getSignedUrl('getObject', {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: key,
+          Expires: 3600
+        });
+      } catch (err) {}
     }
 
     return { 
       ...e, 
       bannerUrl: signedBannerUrl,
+      watermarkUrl: signedWatermarkUrl,
       photoCount,
       faceCount
     };

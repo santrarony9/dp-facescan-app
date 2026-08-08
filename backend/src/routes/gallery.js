@@ -98,6 +98,7 @@ router.get('/:identifier', auth, async (req, res) => {
         _id: event._id,
         name: event.name,
         bannerUrl: getSignedUrl(event.bannerUrl),
+        watermarkUrl: getSignedUrl(event.watermarkUrl),
         eventDate: event.eventDate,
         slug: event.slug,
         albumStatus: event.albumStatus
