@@ -26,7 +26,7 @@ const worker = new Worker('face-processing', async (job) => {
     const findSimilarsRes = await azureFace.post('/face/v1.0/findsimilars', {
       faceId: faceId,
       largeFaceListId: largeFaceListId,
-      maxNumOfCandidatesReturned: 100, // retrieve up to 100 matched faces
+      maxNumOfCandidatesReturned: 1000, // retrieve up to 1000 matched faces for VIPs
       mode: 'matchFace'
     });
 

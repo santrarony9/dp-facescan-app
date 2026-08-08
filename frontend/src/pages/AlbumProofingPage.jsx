@@ -61,63 +61,67 @@ const AlbumProofingPage = () => {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-[#c5a059] italic font-black uppercase tracking-widest text-xs">Accessing Proofing Server...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-blue-600 font-bold uppercase tracking-widest text-sm">Accessing Proofing Server...</div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-outfit p-4 sm:p-8 pt-24 pb-16">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-outfit p-4 sm:p-8 pt-24 pb-16">
       <Navbar />
 
       <div className="max-w-6xl mx-auto space-y-6">
         
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-white/10 pb-6">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-6 gap-4">
           <button 
             onClick={() => navigate(`/${slug}/gallery`)}
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors w-fit bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm"
           >
-            <ArrowLeft size={18} />
-            <span className="text-xs font-bold uppercase tracking-wider">Gallery</span>
+            <ArrowLeft size={16} />
+            <span className="text-sm font-bold uppercase tracking-wider">Back to Gallery</span>
           </button>
-          <div className="text-right">
-             <h1 className="text-xl sm:text-2xl font-black italic uppercase tracking-tight">{event?.name}</h1>
-             <p className="text-xs text-[#c5a059] font-bold uppercase tracking-[0.2em]">Album Design Proofing</p>
+          <div className="text-left sm:text-right">
+             <h1 className="text-xl sm:text-3xl font-extrabold uppercase tracking-tight text-slate-900">{event?.name}</h1>
+             <p className="text-sm text-blue-600 font-bold uppercase tracking-[0.1em] mt-1">Album Design Proofing</p>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           
           {/* PDF / Proof Viewer */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="glass-card p-2 border-[#c5a059]/30 bg-zinc-950 rounded-2xl sm:rounded-3xl overflow-hidden aspect-[16/11] relative">
+          <div className="lg:col-span-2 space-y-4 lg:space-y-6">
+            <div className="bg-white p-2 sm:p-4 border border-slate-200 rounded-3xl overflow-hidden aspect-[16/11] relative shadow-sm">
                {proof?.pdfUrl || event?.bannerUrl ? (
                  <iframe 
                     src={proof?.pdfUrl || event?.bannerUrl}
-                    className="w-full h-full rounded-xl sm:rounded-2xl border-none"
+                    className="w-full h-full rounded-2xl border border-slate-100 bg-slate-50"
                     title="Album Proof"
                  />
                ) : (
-                 <div className="w-full h-full flex flex-col items-center justify-center text-zinc-600 gap-3 p-4 text-center">
-                    <AlertTriangle size={36} className="text-[#c5a059]" />
-                    <p className="text-xs font-bold uppercase tracking-widest">No PDF Proof Uploaded Yet</p>
+                 <div className="w-full h-full rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-slate-400 gap-4 p-4 text-center">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
+                      <AlertTriangle size={32} className="text-amber-500" />
+                    </div>
+                    <p className="text-sm font-bold uppercase tracking-widest text-slate-500">No PDF Proof Uploaded Yet</p>
                  </div>
                )}
             </div>
             
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-zinc-900/60 p-4 sm:p-6 rounded-2xl border border-white/10 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${event?.albumStatus === 'Approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[#c5a059]/10 text-[#c5a059]'}`}>
-                    {event?.albumStatus === 'Approved' ? <CheckCircle size={20} /> : <Clock size={20} />}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${event?.albumStatus === 'Approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                    {event?.albumStatus === 'Approved' ? <CheckCircle size={24} /> : <Clock size={24} />}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-widest">Status</h4>
-                    <p className="text-[11px] text-zinc-400">{event?.albumStatus || 'In Proofing'}</p>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Status</h4>
+                    <p className="text-sm font-bold text-slate-900 mt-0.5">{event?.albumStatus || 'In Proofing'}</p>
                   </div>
                 </div>
                 {event?.albumStatus !== 'Approved' ? (
-                  <button onClick={handleApprove} className="btn-primary py-3 px-6 rounded-full text-sm">Approve Album</button>
+                  <button onClick={handleApprove} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-xl text-sm transition-colors shadow-sm">
+                    Approve Album
+                  </button>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase text-sm bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20">
-                    <CheckCircle size={14} />
+                  <div className="w-full sm:w-auto flex justify-center items-center gap-2 text-emerald-700 font-bold uppercase text-sm bg-emerald-50 px-6 py-3.5 rounded-xl border border-emerald-200">
+                    <CheckCircle size={16} />
                     Verified & Approved
                   </div>
                 )}
@@ -126,16 +130,18 @@ const AlbumProofingPage = () => {
 
           {/* Feedback Section */}
           <div className="space-y-6">
-            <div className="glass-card p-5 sm:p-6 border-white/10 bg-zinc-950 rounded-2xl sm:rounded-3xl">
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={18} className="text-[#c5a059]" />
-                <h3 className="text-base font-black italic uppercase">Submit Revision</h3>
+            <div className="bg-white p-6 sm:p-8 border border-slate-200 rounded-3xl shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                  <MessageSquare size={20} />
+                </div>
+                <h3 className="text-lg font-extrabold uppercase text-slate-900">Submit Revision</h3>
               </div>
               
-              <form onSubmit={handleSubmitFeedback} className="space-y-3">
+              <form onSubmit={handleSubmitFeedback} className="space-y-4">
                 <textarea 
-                  className="input-field min-h-[120px] resize-none p-3 text-xs bg-white/5 border-white/10 focus:border-[#c5a059]" 
-                  placeholder="Describe any page changes or photo requests..."
+                  className="w-full min-h-[160px] resize-none p-4 text-sm font-medium bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 placeholder:text-slate-400" 
+                  placeholder="Describe any page changes, photo swaps, or edits you would like..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   disabled={event?.albumStatus === 'Approved'}
@@ -143,9 +149,9 @@ const AlbumProofingPage = () => {
                 <button 
                   type="submit" 
                   disabled={submitting || event?.albumStatus === 'Approved'}
-                  className="btn-primary w-full py-3.5 rounded-full flex items-center justify-center gap-2 text-xs disabled:opacity-50"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send size={15} />
+                  <Send size={16} />
                   <span>Send Revision Request</span>
                 </button>
               </form>

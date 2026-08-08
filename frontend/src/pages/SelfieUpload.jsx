@@ -49,7 +49,7 @@ const SelfieUpload = () => {
     
     try {
       // 1. Silent Local Authentication
-      const authRes = await authApi.verifyOtp(mobile, '112233', fullName, '');
+      const authRes = await authApi.guestRegister(mobile, fullName, '');
       const token = authRes.data.token;
       
       // Store credentials locally
@@ -59,7 +59,7 @@ const SelfieUpload = () => {
       localStorage.setItem('userMobile', mobile);
 
       // 2. Upload Image payload
-      const { data } = await selfieApi.getUploadUrl('selfie', slug || 'default');
+      const { data } = await selfieApi.getUploadUrl('selfie', slug || 'default', file.type);
       
       await fetch(data.uploadUrl, {
         method: 'PUT',
@@ -82,7 +82,7 @@ const SelfieUpload = () => {
               particleCount: 150,
               spread: 70,
               origin: { y: 0.6 },
-              colors: ['#c5a059', '#e5be75', '#ffffff']
+              colors: ['#2563eb', '#60a5fa', '#ffffff'] // blue theme confetti
             });
             
             setTimeout(() => {
@@ -101,56 +101,56 @@ const SelfieUpload = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-24 pb-12 relative overflow-hidden bg-[#050505] font-outfit">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-24 pb-12 relative overflow-hidden bg-slate-50 font-outfit text-slate-900">
       <Navbar />
 
-      {/* Ambient Background Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[500px] h-[320px] sm:h-[500px] bg-[#c5a059]/10 rounded-full blur-[100px] pointer-events-none" />
+      {/* Clean Background Gradient */}
+      <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-blue-50 to-slate-50 pointer-events-none" />
 
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="glass-card w-full max-w-md relative z-10 text-center my-auto"
+        className="w-full max-w-md relative z-10 text-center my-auto bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-sm"
       >
         <div className="mb-6 sm:mb-8">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#c5a059]/10 border border-[#c5a059]/30 rounded-full text-[#c5a059] text-xs font-black uppercase tracking-[0.25em] mb-3">
-            <ScanLine size={12} />
-            BIOMETRIC AI ENGINE
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-100 border border-blue-200 rounded-full text-blue-700 text-xs font-bold uppercase tracking-widest mb-4">
+            <ScanLine size={14} className="text-blue-600" />
+            AI FACE SCAN
           </span>
-          <h2 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {step === 'camera' ? (
-              <>Face <span className="text-[#c5a059]">Scan</span></>
+              <>Find Your <span className="text-blue-600">Photos</span></>
             ) : (
-              <>Guest <span className="text-[#c5a059]">Details</span></>
+              <>Guest <span className="text-blue-600">Details</span></>
             )}
           </h2>
-          <p className="text-zinc-400 text-xs sm:text-sm uppercase tracking-[0.2em] font-bold mt-1">
-            {step === 'camera' ? 'Capture photo to unlock your album' : 'Enter your name to reveal photos'}
+          <p className="text-slate-500 text-sm font-medium mt-2">
+            {step === 'camera' ? 'Capture a selfie to instantly find photos of you' : 'Enter your details to reveal your photos'}
           </p>
         </div>
         
         {/* Dynamic Viewfinder Frame */}
-        <div className={`relative mx-auto mb-6 sm:mb-8 transition-all duration-500 ${step === 'camera' ? 'w-48 h-48 sm:w-56 sm:h-56' : 'w-28 h-28 opacity-80'}`}>
+        <div className={`relative mx-auto mb-8 transition-all duration-500 ${step === 'camera' ? 'w-48 h-48 sm:w-56 sm:h-56' : 'w-28 h-28 opacity-90'}`}>
           
-          {/* Animated Gold Scanner Ring */}
-          <div className="absolute inset-0 border border-[#c5a059]/30 rounded-full" />
+          {/* Animated Scanner Ring */}
+          <div className="absolute inset-0 border border-slate-200 rounded-full shadow-inner bg-slate-50" />
           {step === 'camera' && (
             <>
               <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-2 border-t-2 border-[#c5a059]/60 rounded-full border-dashed"
+                className="absolute -inset-2 border-t-2 border-blue-400 rounded-full border-dashed"
               />
               <motion.div 
                 animate={{ rotate: -360 }}
                 transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-4 border-l-2 border-[#c5a059]/20 rounded-full"
+                className="absolute -inset-4 border-l-2 border-blue-200 rounded-full"
               />
             </>
           )}
           
-          <div className="absolute inset-3 overflow-hidden rounded-full bg-zinc-950 flex items-center justify-center border border-[#c5a059]/40 shadow-[inset_0_0_30px_rgba(0,0,0,0.9)] relative group">
+          <div className="absolute inset-3 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm relative group">
             <AnimatePresence mode="wait">
               {image ? (
                 <motion.div 
@@ -162,13 +162,13 @@ const SelfieUpload = () => {
                 >
                   <img src={image} alt="Selfie" className="w-full h-full object-cover" />
                   {status === 'processing' && (
-                    <div className="absolute inset-0 bg-[#c5a059]/20 animate-pulse flex items-center justify-center">
-                      <div className="w-full h-1 bg-[#c5a059] shadow-[0_0_15px_#c5a059] animate-scan" />
+                    <div className="absolute inset-0 bg-blue-500/20 animate-pulse flex items-center justify-center">
+                      <div className="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)] animate-scan" />
                     </div>
                   )}
                   {status === 'complete' && (
-                    <div className="absolute inset-0 bg-[#c5a059]/20 flex items-center justify-center backdrop-blur-xs">
-                       <CheckCircle2 className="w-12 h-12 text-[#c5a059] drop-shadow-[0_0_15px_rgba(197,160,89,1)]" />
+                    <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-sm">
+                       <CheckCircle2 className="w-14 h-14 text-blue-600 drop-shadow-md" />
                     </div>
                   )}
                 </motion.div>
@@ -179,8 +179,8 @@ const SelfieUpload = () => {
                   animate={{ opacity: 1 }}
                   className="flex flex-col items-center gap-2 p-4"
                 >
-                  <Camera size={44} className="text-[#c5a059]/60 group-hover:text-[#c5a059] transition-colors duration-300" />
-                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Tap to Scan</p>
+                  <Camera size={44} className="text-slate-300 group-hover:text-blue-500 transition-colors duration-300" />
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Tap to Scan</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -188,7 +188,7 @@ const SelfieUpload = () => {
         </div>
 
         {/* Dynamic Action Controls */}
-        <div className="min-h-[120px] flex flex-col justify-center">
+        <div className="min-h-[130px] flex flex-col justify-center">
           
           {/* STEP 1: CAMERA SHUTTER */}
           {step === 'camera' && status === 'idle' && (
@@ -204,10 +204,14 @@ const SelfieUpload = () => {
               
               <button 
                 onClick={() => fileInputRef.current.click()}
-                className="btn-primary w-full py-3.5 bg-transparent border border-[#c5a059]/60 text-[#c5a059] hover:bg-[#c5a059]/10 shadow-none text-xs"
+                className={`w-full py-3.5 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                  image 
+                    ? 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100' 
+                    : 'bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-600/20'
+                }`}
               >
                 {image ? 'Retake Photo' : 'Open Camera'}
-                <Camera size={16} />
+                <Camera size={18} />
               </button>
               
               {image && (
@@ -215,10 +219,10 @@ const SelfieUpload = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={handleConfirmPhoto}
-                  className="btn-primary w-full py-4 text-xs shadow-[0_10px_25px_rgba(197,160,89,0.35)]"
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 mt-3"
                 >
                   Confirm & Next
-                  <ArrowRight size={16} />
+                  <ArrowRight size={18} />
                 </motion.button>
               )}
             </div>
@@ -226,17 +230,17 @@ const SelfieUpload = () => {
 
           {/* STEP 2: REGISTRATION FORM */}
           {step === 'registration' && status === 'idle' && (
-            <form onSubmit={handleSubmitRegistration} className="space-y-3.5 text-left">
-              <div className="space-y-1">
-                <label className="text-xs font-black text-zinc-400 uppercase tracking-widest ml-1">
+            <form onSubmit={handleSubmitRegistration} className="space-y-4 text-left">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a059]/60" />
+                  <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input 
                     type="text" 
                     placeholder="Enter your name" 
-                    className="input-field pl-11 py-3 text-xs bg-white/5 border-white/10 focus:border-[#c5a059]" 
+                    className="w-full pl-12 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900" 
                     value={fullName}
                     onChange={e => setFullName(e.target.value)}
                     required
@@ -244,16 +248,16 @@ const SelfieUpload = () => {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-black text-zinc-400 uppercase tracking-widest ml-1">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
                   Mobile Number
                 </label>
                 <div className="relative">
-                  <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a059]/60" />
+                  <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input 
                     type="tel" 
                     placeholder="10-digit number" 
-                    className="input-field pl-11 py-3 text-xs bg-white/5 border-white/10 focus:border-[#c5a059]" 
+                    className="w-full pl-12 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900" 
                     value={mobile}
                     onChange={e => setMobile(e.target.value)}
                     required
@@ -263,27 +267,27 @@ const SelfieUpload = () => {
 
               <button 
                 type="submit"
-                className="btn-primary w-full py-4 text-xs mt-4 shadow-[0_10px_25px_rgba(197,160,89,0.35)]"
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 mt-6"
               >
                 Scan Database & Reveal Gallery
-                <Sparkles size={16} />
+                <Sparkles size={18} />
               </button>
             </form>
           )}
 
           {/* UPLOAD & PROCESSING STATE */}
           {status === 'uploading' && (
-            <div className="text-center py-4">
-              <Loader2 className="w-10 h-10 text-[#c5a059] animate-spin mx-auto mb-3" />
-              <p className="text-[#c5a059] uppercase tracking-widest text-xs font-bold">Uploading Biometric Payload...</p>
+            <div className="text-center py-6">
+              <Loader2 className="w-10 h-10 text-blue-500 animate-spin mx-auto mb-4" />
+              <p className="text-blue-600 uppercase tracking-widest text-xs font-bold">Uploading Biometrics...</p>
             </div>
           )}
 
           {status === 'processing' && (
-            <div className="text-center py-4">
-              <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden mb-4 border border-white/5">
+            <div className="text-center py-6">
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-5">
                 <motion.div 
-                  className="h-full bg-[#c5a059]"
+                  className="h-full bg-blue-500"
                   animate={{ 
                     x: ['-100%', '100%'],
                     width: ['40%', '40%']
@@ -291,8 +295,8 @@ const SelfieUpload = () => {
                   transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
                 />
               </div>
-              <p className="text-white uppercase tracking-[0.2em] text-xs font-black italic">Matching Neural Embeddings...</p>
-              <p className="text-zinc-500 text-xs mt-1 font-medium">Scanning photos in event gallery</p>
+              <p className="text-slate-900 uppercase tracking-widest text-sm font-extrabold mb-1">Analyzing Face...</p>
+              <p className="text-slate-500 text-xs font-medium">Scanning photos in event gallery</p>
             </div>
           )}
 
@@ -300,23 +304,23 @@ const SelfieUpload = () => {
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center py-3"
+              className="text-center py-6"
             >
-              <h3 className="text-xl font-black text-white mb-1 uppercase italic">Face Matched!</h3>
-              <p className="text-zinc-400 text-sm uppercase tracking-widest">Opening personal gallery...</p>
+              <h3 className="text-2xl font-extrabold text-slate-900 mb-2">Face Matched!</h3>
+              <p className="text-slate-500 text-sm font-medium">Opening your personal gallery...</p>
             </motion.div>
           )}
 
           {status === 'error' && (
-            <div className="text-center py-3">
-              <XCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
-              <p className="text-white text-xs font-bold mb-3">Processing Error</p>
+            <div className="text-center py-5 border border-red-100 bg-red-50 rounded-xl mt-4">
+              <XCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+              <p className="text-slate-900 text-sm font-bold mb-3">Processing Error</p>
               <button 
                 onClick={() => {
                    setStatus('idle');
                    setStep('camera');
                 }} 
-                className="text-[#c5a059] text-sm font-black uppercase tracking-widest hover:underline"
+                className="text-blue-600 text-xs font-bold uppercase tracking-wider hover:underline"
               >
                 Try Again
               </button>

@@ -6,14 +6,15 @@ const { v4: uuidv4 } = require('uuid');
 
 // GET /api/upload/url?type=selfie&eventId=...
 router.get('/url', auth, async (req, res) => {
-  const { type, eventId } = req.query;
-  const fileName = `${type}/${eventId || 'common'}/${uuidv4()}.jpg`;
+  const { type, eventId, contentType = 'image/jpeg' } = req.query;
+  const ext = contentType.split('/')[1] || 'jpg';
+  const fileName = `${type}/${eventId || 'common'}/${uuidv4()}.${ext}`;
 
   const params = {
     Bucket: process.env.AWS_S3_BUCKET,
     Key: fileName,
     Expires: 600, // 10 minutes
-    ContentType: 'image/jpeg'
+    ContentType: contentType
   };
 
   try {

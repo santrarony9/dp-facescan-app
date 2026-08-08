@@ -217,9 +217,14 @@ router.delete('/events/:id', adminAuth, async (req, res) => {
 // PUT /api/admin/events/:id (Update Event Details)
 router.put('/events/:id', adminAuth, async (req, res) => {
   try {
+    const allowedFields = ['name', 'slug', 'bannerUrl', 'watermarkUrl', 'eventDate', 'clientName', 'clientPhone', 'guestPrivacyEnabled', 'albumStatus'];
+    const updates = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
+      { $set: updates },
       { new: true }
     );
     res.json(updatedEvent);

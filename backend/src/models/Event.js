@@ -12,7 +12,7 @@ const EventSchema = new mongoose.Schema({
   guestPrivacyEnabled: { type: Boolean, default: true }, // true: Guest sees only their photos. false: Guest sees all event photos
   albumStatus: { 
     type: String, 
-    enum: ['Selecting', 'Designing', 'Proofing', 'Completed'],
+    enum: ['Selecting', 'Designing', 'Proofing', 'Approved', 'Completed'],
     default: 'Selecting'
   },
   largeFaceListId: { type: String }, // Azure LargeFaceList ID

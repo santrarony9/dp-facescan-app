@@ -9,16 +9,20 @@ const AlbumProof = require('../models/AlbumProof');
 const s3 = require('../config/aws');
 
 // Helper: Convert raw S3 URL to a presigned URL (valid for 1 hour)
-function getSignedUrl(rawUrl) {
+function getSignedUrl(rawUrl, isDownload = false) {
   if (!rawUrl) return rawUrl;
   try {
     const url = new URL(rawUrl);
-    const key = decodeURIComponent(url.pathname.slice(1)); // Remove leading /
-    return s3.getSignedUrl('getObject', {
-      Bucket: process.env.AWS_S3_BUCKET,
-      Key: key,
+    const s3Path = url.pathname.slice(1); // Remove leading slash and strip query params
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET || process.env.AWS_BUCKET_NAME,
+      Key: decodeURIComponent(s3Path),
       Expires: 3600 // 1 hour
-    });
+    };
+    if (isDownload) {
+      params.ResponseContentDisposition = `attachment; filename="dreamline-${Date.now()}.jpg"`;
+    }
+    return s3.getSignedUrl('getObject', params);
   } catch (e) {
     return rawUrl; // Return original if parsing fails
   }
@@ -28,8 +32,10 @@ function getSignedUrl(rawUrl) {
 function signPhotos(photos) {
   return photos.map(p => {
     const obj = p.toObject ? p.toObject() : { ...p };
-    obj.imageUrl = getSignedUrl(obj.imageUrl);
+    if (obj.imageUrl) obj.imageUrl = getSignedUrl(obj.imageUrl);
+    if (obj.url) obj.url = getSignedUrl(obj.url);
     if (obj.thumbnailUrl) obj.thumbnailUrl = getSignedUrl(obj.thumbnailUrl);
+    if (obj.highResUrl) obj.highResUrl = getSignedUrl(obj.highResUrl);
     return obj;
   });
 }
@@ -62,6 +68,51 @@ router.get('/public/events', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Error fetching public events', error: error.message });
   }
+});
+
+// GET /api/gallery/:identifier/public (No Auth Required - Max 20 Showcase Photos)
+router.get('/:identifier/public', async (req, res) => {
+  const { identifier } = req.params;
+
+  try {
+    const event = await Event.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(identifier) ? identifier : null },
+        { slug: identifier }
+      ]
+    });
+    
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    // Fetch up to 20 showcase photos
+    const photos = await Photo.find({ eventId: event._id, isShowcase: true })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    res.json({ 
+      photos: signPhotos(photos), 
+      event: {
+        _id: event._id,
+        name: event.name,
+        bannerUrl: event.bannerUrl ? getSignedUrl(event.bannerUrl) : 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
+        watermarkUrl: event.watermarkUrl ? getSignedUrl(event.watermarkUrl) : null,
+        eventDate: event.eventDate,
+        slug: event.slug,
+        albumStatus: event.albumStatus
+      },
+      status: photos.length > 0 ? 'ready' : 'no_photos' 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching public gallery' });
+  }
+});
+
+// GET /api/gallery/download-url (Auth Required)
+router.get('/download-url', auth, (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ message: 'URL required' });
+  const downloadUrl = getSignedUrl(url, true);
+  res.json({ downloadUrl });
 });
 
 // GET /api/gallery/:identifier (identifier can be eventId or slug)
@@ -97,8 +148,8 @@ router.get('/:identifier', auth, async (req, res) => {
       event: {
         _id: event._id,
         name: event.name,
-        bannerUrl: getSignedUrl(event.bannerUrl),
-        watermarkUrl: getSignedUrl(event.watermarkUrl),
+        bannerUrl: event.bannerUrl ? getSignedUrl(event.bannerUrl) : 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
+        watermarkUrl: event.watermarkUrl ? getSignedUrl(event.watermarkUrl) : null,
         eventDate: event.eventDate,
         slug: event.slug,
         albumStatus: event.albumStatus
@@ -111,9 +162,9 @@ router.get('/:identifier', auth, async (req, res) => {
   }
 });
 
-// POST /api/gallery/:photoId/select (Client Only)
+// POST /api/gallery/:photoId/select (Client & Admin)
 router.post('/:photoId/select', auth, async (req, res) => {
-  if (req.user.role !== 'client') return res.status(403).json({ message: 'Forbidden' });
+  if (req.user.role !== 'client' && req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
 
   try {
     const photo = await Photo.findById(req.params.photoId);
@@ -125,6 +176,31 @@ router.post('/:photoId/select', auth, async (req, res) => {
     res.json({ isSelected: photo.isSelected });
   } catch (error) {
     res.status(500).json({ message: 'Selection failed' });
+  }
+});
+
+// POST /api/gallery/:photoId/showcase (Admin Only)
+router.post('/:photoId/showcase', auth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+
+  try {
+    const photo = await Photo.findById(req.params.photoId);
+    if (!photo) return res.status(404).json({ message: 'Photo not found' });
+
+    // If we are turning it ON, check if we already have 20 showcase photos
+    if (!photo.isShowcase) {
+      const showcaseCount = await Photo.countDocuments({ eventId: photo.eventId, isShowcase: true });
+      if (showcaseCount >= 20) {
+        return res.status(400).json({ message: 'Maximum 20 showcase photos allowed.' });
+      }
+    }
+
+    photo.isShowcase = !photo.isShowcase;
+    await photo.save();
+
+    res.json({ isShowcase: photo.isShowcase });
+  } catch (error) {
+    res.status(500).json({ message: 'Showcase selection failed' });
   }
 });
 

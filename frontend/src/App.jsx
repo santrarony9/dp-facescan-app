@@ -26,14 +26,7 @@ const AnimatedRoutes = () => {
         <Route path="/:slug" element={<SelfieUpload />} />
 
         {/* Protected Album Routes */}
-        <Route 
-          path="/:slug/gallery" 
-          element={
-            <ProtectedScanRoute>
-              <GalleryPage />
-            </ProtectedScanRoute>
-          } 
-        />
+        <Route path="/:slug/gallery" element={<GalleryPage />} />
         <Route 
           path="/:slug/gallery/proofing" 
           element={
