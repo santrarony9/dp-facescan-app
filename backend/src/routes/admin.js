@@ -162,7 +162,40 @@ router.delete('/events/:id', adminAuth, async (req, res) => {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    // 1. Delete associated photos in DB
+    // 1. Delete associated photos in S3 and DB
+    const photos = await Photo.find({ eventId: event._id });
+    try {
+      const s3 = require('../config/aws');
+      const objectsToDelete = [];
+      
+      const pushKey = (urlStr) => {
+        if (urlStr && urlStr.startsWith('http')) {
+          try {
+            const url = new URL(urlStr);
+            objectsToDelete.push({ Key: decodeURIComponent(url.pathname.slice(1)) });
+          } catch(e) {}
+        }
+      };
+
+      photos.forEach(p => {
+        pushKey(p.imageUrl);
+        pushKey(p.thumbnailUrl);
+      });
+      pushKey(event.bannerUrl);
+      pushKey(event.watermarkUrl);
+
+      if (objectsToDelete.length > 0) {
+        for (let i = 0; i < objectsToDelete.length; i += 1000) {
+          await s3.deleteObjects({
+            Bucket: process.env.AWS_S3_BUCKET,
+            Delete: { Objects: objectsToDelete.slice(i, i + 1000) }
+          }).promise();
+        }
+      }
+    } catch (s3err) {
+      console.error('S3 deletion error:', s3err);
+    }
+    
     await Photo.deleteMany({ eventId: event._id });
 
     // 2. Delete LargeFaceList in Azure
