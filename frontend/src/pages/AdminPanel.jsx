@@ -260,10 +260,11 @@ const AdminPanel = () => {
 
       setIsUploading(true);
       setUploadProgress(0);
-      setUploadStats({ success: 0, failed: 0, total: files.length });
+      setUploadStats({ success: 0, failed: 0, total: files.length, lastError: null });
       
       const uploadedData = [];
       const CONCURRENCY_LIMIT = 3; // Lowered from 10 to prevent OOM crash on mobile/weak PCs
+      let lastErrorMsg = null;
       
       // Compression options
       const options = {
@@ -305,10 +306,13 @@ const AdminPanel = () => {
               })
             ]);
 
-            if (!response.ok || !thumbResponse.ok) throw new Error('S3 upload rejected');
+            if (!response.ok) throw new Error(`S3 upload rejected: ${response.status} ${response.statusText}`);
+            if (!thumbResponse.ok) throw new Error(`S3 thumb upload rejected: ${thumbResponse.status} ${thumbResponse.statusText}`);
+            
             return { url: data.fileUrl, thumbnailUrl: thumbData.fileUrl, originalFilename: file.name };
           } catch (err) {
             console.error('Upload failed for a file', err);
+            lastErrorMsg = err.message || 'Unknown error';
             return null;
           }
         });
@@ -320,11 +324,11 @@ const AdminPanel = () => {
         setUploadStats(prev => ({ 
           ...prev, 
           success: prev.success + successful.length,
-          failed: prev.failed + (chunk.length - successful.length)
+          failed: prev.failed + (chunk.length - successful.length),
+          lastError: lastErrorMsg
         }));
         
-        const currentProgress = Math.round(((i + chunk.length) / files.length) * 100);
-        setUploadProgress(currentProgress > 100 ? 100 : currentProgress);
+        setUploadProgress(Math.round(((i + chunk.length) / files.length) * 100));
       }
 
       if (uploadedData.length > 0) {
@@ -747,15 +751,26 @@ const AdminPanel = () => {
             <div className="w-full bg-slate-100 rounded-full h-4 mb-3 overflow-hidden shadow-inner">
               <div 
                 className="bg-blue-600 h-full rounded-full transition-all duration-300 ease-out relative"
-                style={{ width: `${uploadProgress}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_1s_infinite]" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }}></div>
+            <div className="flex-1 w-full mt-4">
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+                <div 
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                />
               </div>
-            </div>
-            
-            <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-              <span>{uploadProgress}%</span>
-              {uploadStats.failed > 0 && <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded-md">{uploadStats.failed} failed</span>}
+              <div className="flex justify-between items-center mt-3 text-sm font-bold">
+                <span className="text-slate-600">{uploadProgress}%</span>
+                {uploadStats.failed > 0 && (
+                  <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded-md">
+                    {uploadStats.failed} FAILED
+                  </span>
+                )}
+              </div>
+              {uploadStats.lastError && (
+                <p className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+                  Error: {uploadStats.lastError}
+                </p>
+              )}
             </div>
             
             {uploadProgress === 100 && (
