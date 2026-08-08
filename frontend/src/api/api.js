@@ -6,11 +6,10 @@ const isLocalHost =
   window.location.hostname.startsWith('192.168.') || 
   window.location.hostname.startsWith('10.');
 
-// Enforce proper HTTPS API URL in production to prevent Mixed Content blocked errors
-const prodApiUrl = 'https://api.dreamlineproduction.com/api';
-
 const api = axios.create({
-  baseURL: isLocalHost ? `http://${window.location.hostname}:5000/api` : prodApiUrl,
+  baseURL: import.meta.env.VITE_API_URL 
+    ? import.meta.env.VITE_API_URL 
+    : (isLocalHost ? `http://${window.location.hostname}:5000/api` : 'https://api.dreamlineproduction.com/api'),
 });
 
 // Add token to requests
@@ -25,16 +24,13 @@ api.interceptors.request.use((config) => {
 export const authApi = {
   sendOtp: (mobile) => api.post('/auth/send-otp', { mobile }),
   verifyOtp: (mobile, otp, fullName, email) => api.post('/auth/verify-otp', { mobile, otp, fullName, email }),
-  guestRegister: (mobile, fullName, email) => api.post('/auth/guest-register', { mobile, fullName, email }),
   clientLogin: (mobile, passkey) => api.post('/auth/client-login', { mobile, passkey }),
   passkeyLogin: (passkey, slug) => api.post('/auth/passkey-login', { passkey, slug }),
-  adminLogin: (pin) => api.post('/auth/admin-login', { pin }),
   getStatus: () => api.get('/auth/status'),
 };
 
 export const adminApi = {
   getEvents: () => api.get('/admin/events'),
-  getOrders: () => api.get('/admin/orders'),
   createEvent: (data) => api.post('/admin/events', data),
   deleteEvent: (eventId) => api.delete(`/admin/events/${eventId}`),
   updateEvent: (eventId, data) => api.put(`/admin/events/${eventId}`, data),
@@ -43,7 +39,6 @@ export const adminApi = {
   uploadPhotos: (eventId, images) => api.post('/admin/photos/bulk', { eventId, images }),
   uploadProof: (eventId, pdfUrl) => api.post(`/admin/events/${eventId}/proof`, { pdfUrl }),
   getDownloadZipUrl: (eventId) => `${api.defaults.baseURL}/admin/events/${eventId}/download-zip`,
-  getSelections: (eventId) => api.get(`/admin/events/${eventId}/selections`),
 };
 
 export const selfieApi = {
@@ -57,11 +52,6 @@ export const galleryApi = {
   selectPhoto: (photoId) => api.post(`/gallery/${photoId}/select`),
   submitFeedback: (eventId, comment) => api.post(`/gallery/${eventId}/feedback`, { comment }),
   approveAlbum: (eventId) => api.post(`/gallery/${eventId}/approve`)
-};
-
-export const paymentApi = {
-  createOrder: (data) => api.post('/payment/create', data),
-  verifyPayment: (data) => api.post('/payment/verify', data)
 };
 
 export default api;

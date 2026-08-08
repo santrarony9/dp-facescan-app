@@ -3,7 +3,7 @@ import {
   Plus, Upload, Trash2, Camera, LayoutDashboard, 
   Settings, Users, Activity, X, Image as ImageIcon,
   LogOut, Search, Download, Shield, Calendar, ChevronRight, CheckCircle2,
-  Menu, Edit2, Share2, Droplet, Stamp, Archive, ShoppingBag
+  Menu, Edit2, Share2, Droplet, Stamp, Archive
 } from 'lucide-react';
 import { adminApi, selfieApi, authApi } from '../api/api';
 import imageCompression from 'browser-image-compression';
@@ -12,7 +12,6 @@ import ShareModal from '../components/ShareModal';
 const AdminPanel = () => {
   const [events, setEvents] = useState([]);
   const [leads, setLeads] = useState([]);
-  const [orders, setOrders] = useState([]);
   const [newEvent, setNewEvent] = useState({ 
     name: '', 
     slug: '', 
@@ -42,7 +41,6 @@ const AdminPanel = () => {
     if (isAuthenticated) {
       fetchEvents();
       fetchLeads();
-      fetchOrders();
     }
   }, [isAuthenticated]);
 
@@ -87,15 +85,6 @@ const AdminPanel = () => {
       console.error('Failed to fetch leads');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchOrders = async () => {
-    try {
-      const res = await adminApi.getOrders();
-      setOrders(res.data);
-    } catch (error) {
-      console.error('Failed to fetch orders');
     }
   };
 
@@ -426,7 +415,6 @@ const AdminPanel = () => {
             { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
             { id: 'events', icon: Calendar, label: 'Events' },
             { id: 'leads', icon: Users, label: 'Customers' },
-            { id: 'orders', icon: ShoppingBag, label: 'Orders' },
             { id: 'logs', icon: Activity, label: 'Activity Logs' }
           ].map((item) => {
             const isActive = activeTab === item.id;
@@ -438,7 +426,6 @@ const AdminPanel = () => {
                    setSidebarOpen(false);
                    if (item.id === 'events') fetchEvents();
                    if (item.id === 'leads') fetchLeads();
-                   if (item.id === 'orders') fetchOrders();
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                   isActive
@@ -718,63 +705,6 @@ const AdminPanel = () => {
                                     <Users size={28} className="text-slate-400" />
                                   </div>
                                   <p className="font-bold text-slate-700">No leads registered yet.</p>
-                                </td>
-                              </tr>
-                            )}
-                        </tbody>
-                      </table>
-                    </div>
-                 </div>
-              </div>
-            ) : activeTab === 'orders' ? (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-                  <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">Merchandise Orders</h2>
-                    <p className="text-slate-500 font-medium">Track and manage client purchases</p>
-                  </div>
-                </div>
-
-                 <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 text-xs uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                            <tr>
-                              <th className="px-6 py-4 whitespace-nowrap">Order ID</th>
-                              <th className="px-6 py-4 whitespace-nowrap">Client Name</th>
-                              <th className="px-6 py-4 whitespace-nowrap">Mobile</th>
-                              <th className="px-6 py-4 whitespace-nowrap">Product</th>
-                              <th className="px-6 py-4 whitespace-nowrap">Amount</th>
-                              <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                              <th className="px-6 py-4 text-right whitespace-nowrap">Date</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm">
-                            {orders.map((order) => (
-                              <tr key={order._id} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-6 py-4 text-slate-500 font-mono text-xs">{order.razorpayOrderId || 'N/A'}</td>
-                                  <td className="px-6 py-4 font-bold text-slate-900">{order.customerName}</td>
-                                  <td className="px-6 py-4 text-slate-600 font-mono font-medium">{order.customerMobile}</td>
-                                  <td className="px-6 py-4 text-slate-900 font-bold">
-                                    {order.productName}
-                                    <div className="mt-1"><a href={order.photoUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-medium text-xs">View Photo</a></div>
-                                  </td>
-                                  <td className="px-6 py-4 text-emerald-600 font-bold">₹{order.amount}</td>
-                                  <td className="px-6 py-4">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${order.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                      {order.status}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-slate-500 text-right font-medium">{new Date(order.createdAt).toLocaleDateString()}</td>
-                              </tr>
-                            ))}
-                            {orders.length === 0 && !loading && (
-                              <tr>
-                                <td colSpan="7" className="px-6 py-16 text-center text-slate-500">
-                                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                                    <ShoppingBag size={28} className="text-slate-400" />
-                                  </div>
-                                  <p className="font-bold text-slate-700">No orders placed yet.</p>
                                 </td>
                               </tr>
                             )}
