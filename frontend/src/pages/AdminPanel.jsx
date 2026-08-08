@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Upload, Trash2, Camera, LayoutGrid, LayoutDashboard, 
+  Plus, Upload, Trash2, Camera, LayoutDashboard, 
   Settings, Users, Activity, X, Image as ImageIcon,
-  LogOut, Search, Download, Shield
+  LogOut, Search, Download, Shield, Calendar, ChevronRight, CheckCircle2,
+  Menu, Edit2, Share2
 } from 'lucide-react';
-import { adminApi, selfieApi } from '../api/api';
+import { adminApi, selfieApi, authApi } from '../api/api';
+import imageCompression from 'browser-image-compression';
+import ShareModal from '../components/ShareModal';
 
 const AdminPanel = () => {
   const [events, setEvents] = useState([]);
@@ -21,9 +24,18 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isCreating, setIsCreating] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const MASTER_PIN = import.meta.env.VITE_ADMIN_PIN || '1234';
+  // Mobile sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedShareEvent, setSelectedShareEvent] = useState(null);
+
+  // Upload tracking state
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStats, setUploadStats] = useState({ success: 0, failed: 0, total: 0 });
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -40,12 +52,15 @@ const AdminPanel = () => {
     }
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (pin === MASTER_PIN) {
+    try {
+      const res = await authApi.adminLogin(pin);
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('role', res.data.role);
       setIsAuthenticated(true);
-    } else {
-      alert('Invalid PIN');
+    } catch (error) {
+      alert(error.response?.data?.message || 'Invalid PIN');
     }
   };
 
@@ -103,7 +118,18 @@ const AdminPanel = () => {
       setIsCreating(false);
       setNewEvent({ name: '', slug: '', eventDate: '', clientName: '', clientPhone: '' });
     } catch (error) {
-      alert(error.response?.data?.message || 'Error creating event');
+      alert((error.response?.data?.message || 'Error creating event') + (error.response?.data?.error ? `: ${error.response.data.error}` : ''));
+    }
+  };
+
+  const handleUpdateEvent = async (e) => {
+    e.preventDefault();
+    try {
+      await adminApi.updateEvent(editingEvent._id, editingEvent);
+      fetchEvents();
+      setEditingEvent(null);
+    } catch (error) {
+      alert((error.response?.data?.message || 'Error updating event') + (error.response?.data?.error ? `: ${error.response.data.error}` : ''));
     }
   };
 
@@ -145,42 +171,46 @@ const AdminPanel = () => {
     fileInput.click();
   };
 
-  const handleDownloadZip = (event) => {
-    const url = adminApi.getDownloadZipUrl(event._id);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${event.name}_Selection.zip`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleUploadProof = async (eventId) => {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'application/pdf';
-    fileInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      try {
-        setLoading(true);
-        const { data } = await selfieApi.getUploadUrl('event', eventId);
-        await fetch(data.uploadUrl, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': 'application/pdf' }
-        });
-        await adminApi.uploadProof(eventId, data.fileUrl);
-        fetchEvents();
-        alert('Album proof uploaded successfully.');
-      } catch (err) {
-        console.error('Proof upload failed', err);
-      } finally {
-        setLoading(false);
+  const handleExportLocally = async (event) => {
+    try {
+      // 1. Get selected filenames from backend
+      const { data } = await adminApi.getSelections(event._id);
+      const selectedFilenames = data.filenames;
+      
+      if (!selectedFilenames || selectedFilenames.length === 0) {
+        alert('No photos have been selected by the client for this event yet.');
+        return;
       }
-    };
-    fileInput.click();
+
+      // 2. Ask user to pick the original folder
+      alert(`Please select the local folder on your computer that contains the original high-res photos for "${event.name}".`);
+      const originalDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      
+      // 3. Create a subfolder for the selected photos
+      const selectedDirHandle = await originalDirHandle.getDirectoryHandle('DP_Selected_Album', { create: true });
+      
+      let matchedCount = 0;
+      
+      // 4. Iterate through original folder and copy matched files
+      for await (const entry of originalDirHandle.values()) {
+        if (entry.kind === 'file' && selectedFilenames.includes(entry.name)) {
+          const file = await entry.getFile();
+          const newFileHandle = await selectedDirHandle.getFileHandle(entry.name, { create: true });
+          const writable = await newFileHandle.createWritable();
+          await writable.write(file);
+          await writable.close();
+          matchedCount++;
+        }
+      }
+
+      alert(`Success! Copied ${matchedCount} out of ${selectedFilenames.length} selected photos into the "DP_Selected_Album" folder.`);
+
+    } catch (error) {
+      console.error('Export failed:', error);
+      if (error.name !== 'AbortError') {
+        alert('Failed to export photos. Please ensure you selected the correct folder and are using a supported browser (Chrome/Edge).');
+      }
+    }
   };
 
   const handleUpload = async (eventId) => {
@@ -190,22 +220,71 @@ const AdminPanel = () => {
     fileInput.accept = 'image/*';
     fileInput.onchange = async (e) => {
       const files = Array.from(e.target.files);
-      setLoading(true);
-      for (const file of files) {
+      if (files.length === 0) return;
+
+      setIsUploading(true);
+      setUploadProgress(0);
+      setUploadStats({ success: 0, failed: 0, total: files.length });
+      
+      const uploadedData = [];
+      const CONCURRENCY_LIMIT = 10;
+      
+      // Compression options
+      const options = {
+        maxSizeMB: 1, // Compress to max 1MB
+        maxWidthOrHeight: 1920, // Max Full HD resolution
+        useWebWorker: true
+      };
+      
+      for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
+        const chunk = files.slice(i, i + CONCURRENCY_LIMIT);
+        const chunkPromises = chunk.map(async (file) => {
+          try {
+            // Compress the file before uploading
+            const compressedFile = await imageCompression(file, options);
+            
+            const { data } = await selfieApi.getUploadUrl('event', eventId);
+            const response = await fetch(data.uploadUrl, {
+              method: 'PUT',
+              body: compressedFile,
+              headers: { 'Content-Type': compressedFile.type }
+            });
+            if (!response.ok) throw new Error('S3 upload rejected');
+            return { url: data.fileUrl, originalFilename: file.name };
+          } catch (err) {
+            console.error('Upload failed for a file', err);
+            return null;
+          }
+        });
+        
+        const results = await Promise.all(chunkPromises);
+        const successful = results.filter(res => res !== null);
+        uploadedData.push(...successful);
+        
+        setUploadStats(prev => ({ 
+          ...prev, 
+          success: prev.success + successful.length,
+          failed: prev.failed + (chunk.length - successful.length)
+        }));
+        
+        const currentProgress = Math.round(((i + chunk.length) / files.length) * 100);
+        setUploadProgress(currentProgress > 100 ? 100 : currentProgress);
+      }
+
+      if (uploadedData.length > 0) {
         try {
-          const { data } = await selfieApi.getUploadUrl('event', eventId);
-          await fetch(data.uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': file.type }
-          });
-          await adminApi.uploadPhotos(eventId, [data.fileUrl]);
+          // Uploading array of objects [{ url, originalFilename }]
+          await adminApi.uploadPhotos(eventId, uploadedData);
         } catch (err) {
-          console.error('Upload failed', err);
+          console.error('Bulk index failed', err);
+          alert('Failed to register photos with AI system.');
         }
       }
+      
       fetchEvents();
-      setLoading(false);
+      setTimeout(() => {
+        setIsUploading(false);
+      }, 3000);
     };
     fileInput.click();
   };
@@ -216,32 +295,33 @@ const AdminPanel = () => {
   );
 
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || 0), 0);
+  const totalFaces = events.reduce((sum, e) => sum + (e.faceCount || 0), 0);
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4 font-sans text-zinc-900 dark:text-zinc-100">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full max-w-md rounded-2xl shadow-xl p-8">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900">
+        <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-10">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mb-4">
-                <Shield className="w-8 h-8 text-zinc-800 dark:text-zinc-200" />
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-5 shadow-sm">
+              <Shield className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold">Admin Login</h2>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-2">Enter your secure PIN to access</p>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Admin Login</h2>
+            <p className="text-slate-500 text-sm font-medium mt-1">Enter your secure PIN to access</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
-                <input
-                    type="password"
-                    placeholder="Enter PIN"
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-4 text-center text-xl tracking-widest font-medium focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    autoFocus
-                />
+              <input
+                  type="password"
+                  placeholder="••••"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 text-center text-2xl tracking-[0.75em] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  autoFocus
+              />
             </div>
-            <button type="submit" className="w-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-black font-semibold py-4 rounded-xl transition-colors">
-                Log In
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 font-bold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2">
+              Sign In
             </button>
           </form>
         </div>
@@ -250,231 +330,312 @@ const AdminPanel = () => {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex font-sans text-zinc-900 dark:text-zinc-100">
+    <div className="h-screen bg-slate-50 flex font-sans text-slate-900 overflow-hidden">
       
-      {/* Simple Sidebar */}
-      <aside className="w-64 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col hidden md:flex">
-        <div className="h-20 flex items-center px-6 border-b border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center gap-3">
-            <div className="bg-zinc-900 dark:bg-white rounded-lg p-2">
-              <Camera size={20} className="text-white dark:text-black" />
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 flex flex-col transform transition-transform duration-300 lg:translate-x-0 lg:static lg:flex shrink-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 bg-slate-950">
+          <div className="flex items-center gap-3 text-white w-full">
+            <div className="bg-blue-600 rounded-xl p-1.5 shadow-sm">
+              <Camera size={18} className="text-white" />
             </div>
-            <span className="font-semibold text-lg tracking-tight">Admin Portal</span>
+            <span className="font-bold text-lg tracking-tight">Admin Portal</span>
+            <button className="ml-auto lg:hidden text-slate-400 hover:text-white" onClick={() => setSidebarOpen(false)}>
+              <X size={20} />
+            </button>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-1">
+        <nav className="flex-1 py-6 space-y-1 overflow-y-auto px-4">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'events', icon: LayoutGrid, label: 'Events' },
-            { id: 'leads', icon: Users, label: 'Leads' },
-            { id: 'logs', icon: Activity, label: 'Logs' }
-          ].map((item) => (
-            <button 
-              key={item.id}
-              onClick={() => {
-                 setActiveTab(item.id);
-                 if (item.id === 'events') fetchEvents();
-                 if (item.id === 'leads') fetchLeads();
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === item.id
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white' 
-                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
+            { id: 'events', icon: Calendar, label: 'Events' },
+            { id: 'leads', icon: Users, label: 'Customers' },
+            { id: 'logs', icon: Activity, label: 'Activity Logs' }
+          ].map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button 
+                key={item.id}
+                onClick={() => {
+                   setActiveTab(item.id);
+                   setSidebarOpen(false);
+                   if (item.id === 'events') fetchEvents();
+                   if (item.id === 'leads') fetchLeads();
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                }`}
+              >
+                <item.icon size={18} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-1">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-            <Settings size={18} />
-            Settings
-          </button>
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
-            <LogOut size={18} />
+        <div className="p-4 border-t border-slate-800 bg-slate-950">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors">
+            <LogOut size={16} />
             Sign Out
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
         
         {/* Header */}
-        <header className="h-20 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-8 shrink-0">
-          <h1 className="text-xl font-bold">
-            {activeTab === 'dashboard' ? 'Dashboard Overview' : activeTab === 'leads' ? 'Leads Management' : 'Events Management'}
-          </h1>
+        <header className="h-16 lg:h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
+          <div className="flex items-center gap-3">
+            <button className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <h1 className="text-xl lg:text-2xl font-extrabold text-slate-900 tracking-tight hidden sm:block">
+              {activeTab === 'dashboard' ? 'Overview' : activeTab === 'leads' ? 'Customer Directory' : activeTab === 'events' ? 'Events' : 'System Logs'}
+            </h1>
+          </div>
           
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-end">
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                   type="text" 
-                  placeholder="Search..." 
+                  placeholder="Search events..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-shadow w-64" 
+                  className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2 sm:py-2.5 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all" 
               />
             </div>
             <button 
               onClick={() => setIsCreating(true)}
-              className="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm shrink-0"
             >
-              <Plus size={16} />
-              Create Event
+              <Plus size={18} />
+              <span className="hidden sm:inline">New Event</span>
             </button>
           </div>
         </header>
 
         {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
             
-            {activeTab === 'dashboard' || activeTab === 'events' ? (
+            {(activeTab === 'dashboard' || activeTab === 'events') ? (
               <>
-                {/* Clean Stat Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
                   {[ 
-                     { label: 'Total Events', value: events.length },
-                     { label: 'Total Photos Uploaded', value: totalPhotos },
-                     { label: 'Total Processed Faces', value: totalPhotos > 0 ? (totalPhotos * 3) : 0 }
+                     { label: 'Total Events', value: events.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+                     { label: 'Photos Uploaded', value: totalPhotos, icon: ImageIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                     { label: 'Processed Faces', value: totalFaces, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' }
                   ].map((stat, idx) => (
-                    <div 
-                      key={idx}
-                      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm flex flex-col justify-between"
-                    >
-                      <h4 className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mb-2">{stat.label}</h4>
-                      <div className="text-4xl font-bold">{loading ? '...' : stat.value}</div>
+                    <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8 shadow-[0_2px_10px_rgb(0,0,0,0.02)] flex flex-col items-center sm:items-start text-center sm:text-left">
+                      <div className="flex items-center justify-between w-full mb-4">
+                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{stat.label}</h4>
+                        <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color}`}>
+                          <stat.icon size={20} />
+                        </div>
+                      </div>
+                      <div className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight">
+                        {loading ? '...' : stat.value}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Event List */}
-                <div>
-                  <h3 className="text-lg font-bold mb-4">Event List</h3>
+                {/* Events Table */}
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] overflow-hidden">
+                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900">Active Events</h3>
+                  </div>
+                  
                   {loading ? (
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="h-32 bg-zinc-100 dark:bg-zinc-800 animate-pulse rounded-xl" />
-                      <div className="h-32 bg-zinc-100 dark:bg-zinc-800 animate-pulse rounded-xl" />
+                    <div className="p-12 text-center text-slate-400 font-medium">Loading events...</div>
+                  ) : filteredEvents.length === 0 ? (
+                    <div className="p-16 text-center">
+                       <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                         <Calendar size={28} className="text-slate-400" />
+                       </div>
+                       <h3 className="text-xl font-bold text-slate-900 mb-1">No events found</h3>
+                       <p className="text-slate-500 text-sm">Get started by creating a new event.</p>
+                       <button onClick={() => setIsCreating(true)} className="mt-4 text-blue-600 font-bold hover:text-blue-700 text-sm">
+                         + Create your first event
+                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {filteredEvents.map((event) => (
-                        <div 
-                          key={event._id}
-                          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"
-                        >
-                          <div className="flex items-center gap-4 flex-1">
-                            <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center shrink-0">
-                                <ImageIcon className="text-zinc-400" size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold flex items-center gap-3">
-                                  {event.name}
-                                  {event.clientPasskey && (
-                                     <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-1 rounded font-medium">PIN: {event.clientPasskey}</span>
-                                  )}
-                                </h3>
-                                <div className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-2 mt-1">
-                                  <span>ID: {event.slug}</span>
-                                  <span>&bull;</span>
-                                  <span>{event.eventDate ? new Date(event.eventDate).toLocaleDateString() : 'No Date'}</span>
-                                  <span>&bull;</span>
-                                  <span>{event.photoCount || 0} Photos</span>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse min-w-[800px]">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            <th className="px-6 py-4 whitespace-nowrap">Event Details</th>
+                            <th className="px-6 py-4 whitespace-nowrap">Access Links</th>
+                            <th className="px-6 py-4 text-center whitespace-nowrap">Photos</th>
+                            <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm">
+                          {filteredEvents.map((event) => (
+                            <tr key={event._id} className="hover:bg-slate-50/80 transition-colors group">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 flex items-center justify-center shadow-sm">
+                                    {event.bannerUrl && event.bannerUrl.startsWith('http') ? (
+                                      <img 
+                                        src={event.bannerUrl} 
+                                        alt="Cover" 
+                                        className="w-full h-full object-cover" 
+                                        onError={(e) => {
+                                          e.target.onerror = null;
+                                          e.target.style.display = 'none';
+                                          e.target.parentElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image text-slate-400"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                                        }}
+                                      />
+                                    ) : (
+                                      <ImageIcon size={20} className="text-slate-400" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-slate-900 text-base">{event.name}</div>
+                                    <div className="text-xs font-medium text-slate-500 mt-1 flex items-center gap-1.5">
+                                      <Calendar size={12} />
+                                      {event.eventDate ? new Date(event.eventDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date set'}
+                                    </div>
+                                  </div>
                                 </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <button 
-                              onClick={() => handleUpload(event._id)}
-                              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-black rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                            >
-                              <Upload size={16} />
-                              Upload Photos
-                            </button>
-                            <button 
-                              onClick={() => handleDownloadZip(event)}
-                              className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                            >
-                              <Download size={16} />
-                              Download ZIP
-                            </button>
-                            <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block"></div>
-                            <button 
-                              onClick={() => handleSetBanner(event._id)}
-                              className="px-3 py-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-sm transition-colors"
-                              title="Set Cover Image"
-                            >
-                              Cover
-                            </button>
-                            <button 
-                              onClick={() => handleUploadProof(event._id)}
-                              className="px-3 py-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-sm transition-colors"
-                              title="Upload Album Proof PDF"
-                            >
-                              Proof
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteEvent(event._id)}
-                              className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg text-sm transition-colors"
-                              title="Delete Event"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {filteredEvents.length === 0 && !loading && (
-                        <div className="text-center py-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
-                           <p className="text-zinc-500 font-medium">No events found.</p>
-                        </div>
-                      )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-2 items-start">
+                                  <a 
+                                    href={`https://app.dreamlineproduction.com/${event.slug}/gallery`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 hover:text-blue-600 transition-colors cursor-pointer"
+                                    title="Open Gallery"
+                                  >
+                                    /{event.slug}
+                                  </a>
+                                  {event.clientPasskey && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                                      <Shield size={12} /> PIN: {event.clientPasskey}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="inline-flex items-center justify-center min-w-[3rem] px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-bold text-sm">
+                                  {event.photoCount || 0}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button 
+                                    onClick={() => handleUpload(event._id)}
+                                    className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-blue-100 shadow-sm"
+                                  >
+                                    <Upload size={14} /> Upload
+                                  </button>
+                                  <div className="flex items-center gap-1 transition-opacity">
+                                    <button 
+                                      onClick={() => setSelectedShareEvent(event)}
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                      title="Manage Client & Share"
+                                    >
+                                      <Share2 size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => setEditingEvent(event)}
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                      title="Edit Event"
+                                    >
+                                      <Edit2 size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleSetBanner(event._id)}
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                      title="Set Cover Image"
+                                    >
+                                      <ImageIcon size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleExportLocally(event)}
+                                      className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                                      title="Export Local Originals"
+                                    >
+                                      <Download size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteEvent(event._id)}
+                                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                      title="Delete Event"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
               </>
             ) : activeTab === 'leads' ? (
               <div className="space-y-6">
-                 <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold">Customer Leads</h3>
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">Customer Directory</h3>
+                      <p className="text-sm font-medium text-slate-500 mt-1">Manage and export all captured leads</p>
+                    </div>
                     <button 
                       onClick={downloadLeadsCSV}
-                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
                     >
                        <Download size={16} />
                        Export CSV
                     </button>
                  </div>
 
-                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
+                      <table className="w-full text-left border-collapse min-w-[600px]">
                         <thead>
-                            <tr className="bg-zinc-50 dark:bg-zinc-950/50 border-b border-zinc-200 dark:border-zinc-800 text-sm font-bold text-zinc-600 dark:text-zinc-400">
-                              <th className="px-6 py-4 font-semibold">Name</th>
-                              <th className="px-6 py-4 font-semibold">Phone Number</th>
-                              <th className="px-6 py-4 font-semibold">Email Address</th>
-                              <th className="px-6 py-4 font-semibold">Registration Date</th>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              <th className="px-6 py-4 whitespace-nowrap">Name</th>
+                              <th className="px-6 py-4 whitespace-nowrap">Phone</th>
+                              <th className="px-6 py-4 whitespace-nowrap">Email</th>
+                              <th className="px-6 py-4 text-right whitespace-nowrap">Date</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+                        <tbody className="divide-y divide-slate-100 text-sm">
                             {leads.map((lead) => (
-                              <tr key={lead._id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                                  <td className="px-6 py-4 font-medium">{lead.fullName || 'Unknown'}</td>
-                                  <td className="px-6 py-4 text-zinc-600 dark:text-zinc-400">{lead.mobile}</td>
-                                  <td className="px-6 py-4 text-zinc-600 dark:text-zinc-400">{lead.email || '-'}</td>
-                                  <td className="px-6 py-4 text-zinc-500">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                              <tr key={lead._id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-900">{lead.fullName || 'Unknown'}</td>
+                                  <td className="px-6 py-4 text-slate-600 font-mono font-medium">{lead.mobile}</td>
+                                  <td className="px-6 py-4 text-slate-600">{lead.email || <span className="text-slate-400 italic font-medium">None</span>}</td>
+                                  <td className="px-6 py-4 text-slate-500 text-right font-medium">{new Date(lead.createdAt).toLocaleDateString()}</td>
                               </tr>
                             ))}
                             {leads.length === 0 && !loading && (
                               <tr>
-                                <td colSpan="4" className="px-6 py-12 text-center text-zinc-500">No leads have registered yet.</td>
+                                <td colSpan="4" className="px-6 py-16 text-center text-slate-500">
+                                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                    <Users size={28} className="text-slate-400" />
+                                  </div>
+                                  <p className="font-bold text-slate-700">No leads registered yet.</p>
+                                </td>
                               </tr>
                             )}
                         </tbody>
@@ -483,104 +644,291 @@ const AdminPanel = () => {
                  </div>
               </div>
             ) : (
-              <div className="py-20 text-center text-zinc-500">
-                 <p>This module is currently unavailable.</p>
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                 <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                   <Activity size={32} className="text-slate-400" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 mb-2">Module under maintenance</h3>
+                 <p className="text-slate-500 font-medium">This feature will be available shortly.</p>
               </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* Simple Create Event Modal */}
+      {/* Upload Progress Modal Overlay */}
+      {isUploading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 border border-slate-100">
+            <div className="flex items-center gap-5 mb-6">
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-blue-100">
+                {uploadProgress === 100 ? <CheckCircle2 size={28} /> : <Upload size={28} className="animate-bounce" />}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {uploadProgress === 100 ? 'Upload Complete!' : 'Uploading Photos...'}
+                </h3>
+                <p className="text-sm font-medium text-slate-500 mt-1">
+                  {uploadStats.success} of {uploadStats.total} uploaded successfully
+                </p>
+              </div>
+            </div>
+            
+            <div className="w-full bg-slate-100 rounded-full h-4 mb-3 overflow-hidden shadow-inner">
+              <div 
+                className="bg-blue-600 h-full rounded-full transition-all duration-300 ease-out relative"
+                style={{ width: `${uploadProgress}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_1s_infinite]" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }}></div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <span>{uploadProgress}%</span>
+              {uploadStats.failed > 0 && <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded-md">{uploadStats.failed} failed</span>}
+            </div>
+            
+            {uploadProgress === 100 && (
+              <p className="text-xs text-center text-slate-400 mt-6 font-medium">Processing via AI in background...</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Create Event Modal */}
       {isCreating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 dark:bg-black/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-800">
-              <h2 className="text-xl font-bold">Create New Event</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <div className="flex items-center justify-between p-6 sm:px-8 border-b border-slate-100 bg-white">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900">Create New Event</h2>
+                <p className="text-sm font-medium text-slate-500 mt-1">Set up a new gallery workspace</p>
+              </div>
               <button 
                 onClick={() => setIsCreating(false)}
-                className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors bg-zinc-100 dark:bg-zinc-800 rounded-full p-2"
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors rounded-xl p-2.5"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto">
-              <form id="create-event-form" onSubmit={handleCreateEvent} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Event Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100" 
-                    placeholder="e.g. Smith Wedding"
-                    value={newEvent.name}
-                    onChange={e => setNewEvent({...newEvent, name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">URL Identifier</label>
-                  <input 
-                    type="text" 
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100" 
-                    placeholder="e.g. smith-wedding-2024"
-                    value={newEvent.slug}
-                    onChange={e => setNewEvent({...newEvent, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
-                    required
-                  />
-                  <p className="text-xs text-zinc-500 mt-1">This will be the unique link for the gallery.</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Event Date</label>
-                  <input 
-                    type="date" 
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100" 
-                    value={newEvent.eventDate}
-                    onChange={e => setNewEvent({...newEvent, eventDate: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+            <div className="p-6 sm:px-8 overflow-y-auto">
+              <form id="create-event-form" onSubmit={handleCreateEvent} className="space-y-8">
+                
+                <div className="space-y-5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Essential Details</h4>
+                  
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Client Name</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Event Name *</label>
                     <input 
                       type="text" 
-                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100" 
-                      placeholder="Optional"
-                      value={newEvent.clientName}
-                      onChange={e => setNewEvent({...newEvent, clientName: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 font-medium" 
+                      placeholder="e.g. Smith & Wesson Wedding"
+                      value={newEvent.name}
+                      onChange={e => {
+                        const name = e.target.value;
+                        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                        setNewEvent({...newEvent, name, slug});
+                      }}
+                      required
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Client Phone</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100" 
-                      placeholder="Optional"
-                      value={newEvent.clientPhone}
-                      onChange={e => setNewEvent({...newEvent, clientPhone: e.target.value})}
-                    />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">URL Identifier *</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all" 
+                        placeholder="smith-wedding-24"
+                        value={newEvent.slug}
+                        onChange={e => setNewEvent({...newEvent, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Event Date</label>
+                      <input 
+                        type="date" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 cursor-pointer font-medium" 
+                        value={newEvent.eventDate}
+                        onChange={e => setNewEvent({...newEvent, eventDate: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
+
+                <div className="space-y-5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Client Contact (Optional)</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Client Name</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 font-medium" 
+                        placeholder="John Doe"
+                        value={newEvent.clientName}
+                        onChange={e => setNewEvent({...newEvent, clientName: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Client Phone</label>
+                      <input 
+                        type="tel" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900" 
+                        placeholder="+1 555-0000"
+                        value={newEvent.clientPhone}
+                        onChange={e => setNewEvent({...newEvent, clientPhone: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
               </form>
             </div>
             
-            <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3 bg-zinc-50 dark:bg-zinc-900/50">
+            <div className="p-6 sm:px-8 border-t border-slate-100 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
               <button 
                 type="button" 
                 onClick={() => setIsCreating(false)} 
-                className="px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
                >
                  Cancel
               </button>
-              <button form="create-event-form" type="submit" className="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-black px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                form="create-event-form" 
+                type="submit" 
+                className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2"
+              >
                  Create Event
+                 <ChevronRight size={16} />
               </button>
             </div>
-
           </div>
         </div>
       )}
 
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <div className="flex items-center justify-between p-6 sm:px-8 border-b border-slate-100 bg-white">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900">Edit Event</h2>
+                <p className="text-sm font-medium text-slate-500 mt-1">Update event details</p>
+              </div>
+              <button 
+                onClick={() => setEditingEvent(null)}
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors rounded-xl p-2.5"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 sm:px-8 overflow-y-auto">
+              <form id="edit-event-form" onSubmit={handleUpdateEvent} className="space-y-8">
+                
+                <div className="space-y-5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Essential Details</h4>
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Event Name *</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 font-medium" 
+                      value={editingEvent.name || ''}
+                      onChange={e => {
+                        const name = e.target.value;
+                        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                        setEditingEvent({...editingEvent, name, slug});
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">URL Identifier *</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all" 
+                        value={editingEvent.slug || ''}
+                        onChange={e => setEditingEvent({...editingEvent, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Event Date</label>
+                      <input 
+                        type="date" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 cursor-pointer font-medium" 
+                        value={editingEvent.eventDate ? editingEvent.eventDate.split('T')[0] : ''}
+                        onChange={e => setEditingEvent({...editingEvent, eventDate: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Client Contact (Optional)</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Client Name</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 font-medium" 
+                        value={editingEvent.clientName || ''}
+                        onChange={e => setEditingEvent({...editingEvent, clientName: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">Client Phone</label>
+                      <input 
+                        type="tel" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900" 
+                        value={editingEvent.clientPhone || ''}
+                        onChange={e => setEditingEvent({...editingEvent, clientPhone: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+            
+            <div className="p-6 sm:px-8 border-t border-slate-100 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setEditingEvent(null)} 
+                className="w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+               >
+                 Cancel
+              </button>
+              <button 
+                form="edit-event-form" 
+                type="submit" 
+                className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2"
+              >
+                 Save Changes
+                 <CheckCircle2 size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {selectedShareEvent && (
+        <ShareModal 
+          event={selectedShareEvent} 
+          onClose={() => setSelectedShareEvent(null)}
+          onUpdate={fetchEvents}
+        />
+      )}
     </div>
   );
 };

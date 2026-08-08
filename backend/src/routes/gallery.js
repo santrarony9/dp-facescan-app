@@ -6,6 +6,33 @@ const Gallery = require('../models/Gallery');
 const Event = require('../models/Event');
 const Photo = require('../models/Photo');
 const AlbumProof = require('../models/AlbumProof');
+const s3 = require('../config/aws');
+
+// Helper: Convert raw S3 URL to a presigned URL (valid for 1 hour)
+function getSignedUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const url = new URL(rawUrl);
+    const key = decodeURIComponent(url.pathname.slice(1)); // Remove leading /
+    return s3.getSignedUrl('getObject', {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: key,
+      Expires: 3600 // 1 hour
+    });
+  } catch (e) {
+    return rawUrl; // Return original if parsing fails
+  }
+}
+
+// Helper: Sign all photo URLs in an array
+function signPhotos(photos) {
+  return photos.map(p => {
+    const obj = p.toObject ? p.toObject() : { ...p };
+    obj.imageUrl = getSignedUrl(obj.imageUrl);
+    if (obj.thumbnailUrl) obj.thumbnailUrl = getSignedUrl(obj.thumbnailUrl);
+    return obj;
+  });
+}
 // GET /api/gallery/public/events (No Auth Required - Public Album Covers for Landing Page)
 router.get('/public/events', async (req, res) => {
   try {
@@ -23,7 +50,7 @@ router.get('/public/events', async (req, res) => {
         _id: e._id,
         name: e.name,
         slug: e.slug,
-        bannerUrl: e.bannerUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
+        bannerUrl: e.bannerUrl ? getSignedUrl(e.bannerUrl) : 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
         eventDate: e.eventDate,
         clientName: e.clientName,
         albumStatus: e.albumStatus,
@@ -54,8 +81,8 @@ router.get('/:identifier', auth, async (req, res) => {
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
     let photos = [];
-    if (req.user.role === 'client') {
-      // Main Client gets ALL photos for the event
+    if (req.user.role === 'admin' || req.user.role === 'client' || event.guestPrivacyEnabled === false) {
+      // Admin, Main Client, or Guest (if privacy disabled) get ALL photos for the event
       photos = await Photo.find({ eventId: event._id }).sort({ createdAt: -1 });
     } else {
       // Guest gets only matched photos
@@ -66,11 +93,11 @@ router.get('/:identifier', auth, async (req, res) => {
     const proof = await AlbumProof.findOne({ eventId: event._id }).sort({ createdAt: -1 });
 
     res.json({ 
-      photos, 
+      photos: signPhotos(photos), 
       event: {
         _id: event._id,
         name: event.name,
-        bannerUrl: event.bannerUrl,
+        bannerUrl: getSignedUrl(event.bannerUrl),
         eventDate: event.eventDate,
         slug: event.slug,
         albumStatus: event.albumStatus

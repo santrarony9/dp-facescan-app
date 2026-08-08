@@ -15,13 +15,17 @@ router.post('/events', adminAuth, async (req, res) => {
   const { name, slug, bannerUrl, eventDate, clientName, clientPhone } = req.body;
   
   try {
-    // 1. Create Azure LargeFaceList
+    // 1. Create Azure LargeFaceList (wrapped in try-catch to allow bypass if not approved yet)
     const largeFaceListId = slug.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    await azureFace.put(`/face/v1.0/largefacelists/${largeFaceListId}`, {
-      name: name,
-      userData: 'Created for event: ' + name,
-      recognitionModel: 'recognition_04'
-    });
+    try {
+      await azureFace.put(`/face/v1.0/largefacelists/${largeFaceListId}`, {
+        name: name,
+        userData: 'Created for event: ' + name,
+        recognitionModel: 'recognition_04'
+      });
+    } catch (azureErr) {
+      console.warn(`Azure Face API pending approval. Bypassing for now so testing can continue. Error: ${azureErr.message}`);
+    }
 
     const newEvent = new Event({
       name,
@@ -43,17 +47,21 @@ router.post('/events', adminAuth, async (req, res) => {
 
 // POST /api/admin/photos/bulk
 router.post('/photos/bulk', adminAuth, async (req, res) => {
-  const { eventId, images } = req.body; // images = array of strings (urls)
+  const { eventId, images } = req.body; // images = array of strings or objects {url, originalFilename}
   
   try {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    const photoPromises = images.map(async (url) => {
+    const photoPromises = images.map(async (item) => {
+      const url = typeof item === 'string' ? item : item.url;
+      const originalFilename = typeof item === 'string' ? undefined : item.originalFilename;
+
       // 1. Save Photo with isProcessed: false
       const photo = new Photo({
         eventId,
-        imageUrl: url
+        imageUrl: url,
+        originalFilename
       });
       const savedPhoto = await photo.save();
 
@@ -88,15 +96,47 @@ router.get('/events', adminAuth, async (req, res) => {
   const events = await Event.find().lean();
   const eventIds = events.map(e => e._id);
   
-  const photoCounts = await Photo.aggregate([
-    { $match: { eventId: { $in: eventIds } } },
-    { $group: { _id: "$eventId", count: { $sum: 1 } } }
-  ]);
+  const eventsWithCount = await Promise.all(events.map(async (e) => {
+    const photoCount = await Photo.countDocuments({ 
+      eventId: { $in: [e._id, e._id.toString()] } 
+    });
+    
+    // For face count, we can do a simple aggregate for just this event, or if it fails fallback to 0
+    let faceCount = 0;
+    try {
+      const faceAgg = await Photo.aggregate([
+        { $match: { eventId: { $in: [e._id, e._id.toString()] } } },
+        { $unwind: "$faceIds" },
+        { $count: "totalFaces" }
+      ]);
+      if (faceAgg.length > 0) faceCount = faceAgg[0].totalFaces;
+    } catch (err) {
+      console.log('Face aggregate error:', err.message);
+    }
 
-  const eventsWithCount = events.map(e => {
-    const pCount = photoCounts.find(p => p._id.toString() === e._id.toString());
-    return { ...e, photoCount: pCount ? pCount.count : 0 };
-  });
+    // Sign banner URL
+    let signedBannerUrl = e.bannerUrl;
+    if (signedBannerUrl && signedBannerUrl.startsWith('http')) {
+      try {
+        const url = new URL(signedBannerUrl);
+        const key = decodeURIComponent(url.pathname.slice(1));
+        signedBannerUrl = require('../config/aws').getSignedUrl('getObject', {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: key,
+          Expires: 3600
+        });
+      } catch (err) {
+        // keep original if parsing fails
+      }
+    }
+
+    return { 
+      ...e, 
+      bannerUrl: signedBannerUrl,
+      photoCount,
+      faceCount
+    };
+  }));
 
   res.json(eventsWithCount);
 });
@@ -150,6 +190,23 @@ router.post('/events/:id/train', adminAuth, async (req, res) => {
     res.json({ message: 'Training triggered' });
   } catch (error) {
     res.status(500).json({ message: 'Error triggering training', error: error.response?.data || error.message });
+  }
+});
+
+// GET /api/admin/events/:id/selections (For local file matching)
+router.get('/events/:id/selections', adminAuth, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const selectedPhotos = await Photo.find({ eventId: event._id, isSelected: true });
+    
+    // Extract original filenames. Fallback to image URL if missing (for older photos).
+    const filenames = selectedPhotos.map(p => p.originalFilename || p.imageUrl.split('/').pop());
+    
+    res.json({ filenames });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching selections', error: error.message });
   }
 });
 
