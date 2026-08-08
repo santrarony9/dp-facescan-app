@@ -134,13 +134,16 @@ const AdminPanel = () => {
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (window.confirm('Delete this event? This will permanently remove all associated photos and data.')) {
+    const confirmText = window.prompt('WARNING: This will permanently remove the event and ALL photos from AWS S3.\n\nTo prevent accidental deletion, please type "DELETE" exactly to confirm:');
+    if (confirmText === 'DELETE') {
       try {
         await adminApi.deleteEvent(eventId);
         fetchEvents();
       } catch (error) {
         alert('Failed to delete event. Please try again.');
       }
+    } else if (confirmText !== null) {
+      alert('Deletion cancelled. You did not type "DELETE" exactly.');
     }
   };
 
