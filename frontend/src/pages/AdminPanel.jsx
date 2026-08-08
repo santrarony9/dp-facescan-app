@@ -263,7 +263,7 @@ const AdminPanel = () => {
       setUploadStats({ success: 0, failed: 0, total: files.length });
       
       const uploadedData = [];
-      const CONCURRENCY_LIMIT = 10;
+      const CONCURRENCY_LIMIT = 3; // Lowered from 10 to prevent OOM crash on mobile/weak PCs
       
       // Compression options
       const options = {
@@ -279,11 +279,11 @@ const AdminPanel = () => {
             // Compress the file before uploading
             const compressedFile = await imageCompression(file, options);
             
-            // Generate a lightweight thumbnail
+            // Generate a lightweight thumbnail (useWebWorker false to save RAM)
             const thumbOptions = {
               maxSizeMB: 0.05, // 50KB max
               maxWidthOrHeight: 400,
-              useWebWorker: true
+              useWebWorker: false
             };
             const thumbnailFile = await imageCompression(file, thumbOptions);
             
