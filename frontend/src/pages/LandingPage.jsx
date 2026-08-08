@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { KeyRound, Lock, Search, Sparkles, Image as ImageIcon, X, ArrowRight, ShieldCheck, Camera } from 'lucide-react';
-import { galleryApi, authApi } from '../api/api';
+import { motion } from 'framer-motion';
+import { KeyRound, Lock, Search, Sparkles, Image as ImageIcon, ArrowRight, Camera, Calendar, Users } from 'lucide-react';
+import { galleryApi } from '../api/api';
 import Navbar from '../components/Navbar';
 
 const LandingPage = () => {
@@ -11,12 +11,6 @@ const LandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Unlock Modal States
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [passkey, setPasskey] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
   useEffect(() => {
     fetchEvents();
   }, []);
@@ -42,112 +36,154 @@ const LandingPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-outfit p-3 sm:p-6 pt-24 pb-20 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-outfit relative overflow-hidden">
       <Navbar />
 
-      {/* Ambient Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[600px] h-[350px] sm:h-[600px] bg-[#c5a059]/10 rounded-full blur-[120px] pointer-events-none" />
+      {/* Clean Gradient Background */}
+      <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-blue-50 to-slate-50 pointer-events-none" />
 
       {/* Hero Header Section */}
-      <header className="max-w-6xl mx-auto text-center py-6 sm:py-12 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#c5a059]/10 border border-[#c5a059]/30 rounded-full text-[#c5a059] text-xs sm:text-sm font-black uppercase tracking-[0.25em] mb-4">
-            <Sparkles size={12} />
-            DREAMLINE CINEMATIC ARCHIVES
-          </span>
-          <h1 className="text-3xl sm:text-6xl font-black uppercase italic tracking-tight text-white mb-3">
-            DREAMLINE <span className="text-[#c5a059]">GALLERY</span>
-          </h1>
-          <p className="text-zinc-400 text-xs sm:text-sm font-medium max-w-lg mx-auto tracking-wide leading-relaxed">
-            Browse our exclusive event album covers. Tap any album to enter your 6-digit passkey and access high-fidelity photos.
-          </p>
-        </motion.div>
+      <header className="relative z-10 pt-28 sm:pt-36 pb-8 sm:pb-12">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-100/50 border border-blue-200 text-blue-700 text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded-full mb-6">
+              <Sparkles size={14} className="text-blue-600" />
+              DREAMLINE CINEMATIC ARCHIVES
+            </span>
+            
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 mt-4 mb-4 leading-tight">
+              Event <span className="text-blue-600">Galleries</span>
+            </h1>
+            
+            <p className="text-slate-500 text-sm sm:text-base font-medium max-w-xl mx-auto leading-relaxed mt-4">
+              Browse our curated event albums. Select your album to enter your 
+              secure passkey and access your high-fidelity memories.
+            </p>
+          </motion.div>
 
-        {/* Search & Filter Bar */}
-        <div className="mt-8 max-w-md mx-auto relative px-2">
-          <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-[#c5a059]/70" />
-          <input 
-            type="text" 
-            placeholder="Search album by title or client name..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-12 pr-4 py-3.5 text-xs bg-white/5 border-white/10 focus:border-[#c5a059] rounded-full"
-          />
+          {/* Search Bar */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="mt-10 max-w-lg mx-auto relative shadow-sm rounded-2xl"
+          >
+            <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search album by title or client name..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-2xl pl-13 pr-5 py-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+            />
+          </motion.div>
         </div>
       </header>
 
       {/* Album Covers Gallery Grid */}
-      <main className="max-w-6xl mx-auto relative z-10 mt-6 sm:mt-10">
+      <main className="max-w-5xl mx-auto relative z-10 px-4 sm:px-6 py-10 sm:py-14">
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="aspect-[4/3] rounded-3xl bg-zinc-900/60 animate-pulse border border-white/5" />
+              <div key={i} className="rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm">
+                <div className="aspect-[4/3] bg-slate-100 animate-pulse" />
+                <div className="p-5 space-y-3">
+                  <div className="h-4 bg-slate-100 rounded w-3/4 animate-pulse" />
+                  <div className="h-3 bg-slate-50 rounded w-1/2 animate-pulse" />
+                </div>
+              </div>
             ))}
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="text-center py-20 bg-zinc-950/60 rounded-3xl border border-white/10 p-8 max-w-md mx-auto">
-            <ImageIcon size={40} className="text-zinc-600 mx-auto mb-3" />
-            <h3 className="text-lg font-black uppercase italic text-white mb-1">No Albums Found</h3>
-            <p className="text-zinc-400 text-xs font-medium">Create an event in the Admin panel to show albums here.</p>
-          </div>
+          /* Empty State */
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center justify-center py-24 sm:py-32"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-6">
+              <Camera size={32} className="text-slate-400" />
+            </div>
+            
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 text-center">
+              No Albums Yet
+            </h3>
+            <p className="text-slate-500 text-sm max-w-sm text-center">
+              Your curated event galleries will appear here once created.
+            </p>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEvents.map((item, index) => (
               <motion.div
                 key={item._id || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: index * 0.08 }}
                 onClick={() => handleOpenUnlockModal(item)}
-                className="group relative rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 hover:border-[#c5a059]/60 transition-all duration-500 cursor-pointer shadow-2xl luxury-shine flex flex-col"
+                className="group relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-300 cursor-pointer"
               >
                 {/* Cover Picture */}
-                <div className="aspect-[16/10] w-full relative overflow-hidden bg-zinc-900">
-                  <img 
-                    src={item.bannerUrl} 
-                    alt={item.name} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                <div className="aspect-[16/10] w-full relative overflow-hidden bg-slate-100">
+                  {item.bannerUrl ? (
+                    <img 
+                      src={item.bannerUrl} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                      <Camera size={40} className="text-slate-300" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-60" />
                   
                   {/* Photo Count Badge */}
-                  <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1 rounded-full text-xs font-black text-[#c5a059] uppercase tracking-wider flex items-center gap-1">
-                    <ImageIcon size={11} />
-                    {item.photoCount || 0} Photos
+                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm border border-slate-200 px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 flex items-center gap-1.5 shadow-sm">
+                    <ImageIcon size={12} className="text-blue-600" />
+                    {item.photoCount || 0}
                   </div>
 
                   {/* Lock Indicator */}
-                  <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059]">
+                  <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-slate-200 flex items-center justify-center text-slate-600 shadow-sm">
                     <Lock size={14} />
                   </div>
                 </div>
 
-                {/* Card Content Info */}
-                <div className="p-5 flex-1 flex flex-col justify-between bg-zinc-950/80">
-                  <div>
-                    <h3 className="text-lg font-black uppercase italic tracking-tight text-white group-hover:text-[#c5a059] transition-colors mb-1">
-                      {item.name}
-                    </h3>
-                    <p className="text-zinc-400 text-xs font-medium">
-                      {item.clientName ? `Client: ${item.clientName}` : 'Dreamline Production'}
-                      {item.eventDate && ` • ${new Date(item.eventDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`}
-                    </p>
+                {/* Card Content */}
+                <div className="p-5 relative">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors duration-300 mb-2 line-clamp-1">
+                    {item.name}
+                  </h3>
+                  <div className="flex items-center gap-3 text-slate-500 text-[12px] font-medium">
+                    {item.clientName && (
+                      <span className="flex items-center gap-1">
+                        <Users size={12} />
+                        {item.clientName}
+                      </span>
+                    )}
+                    {item.eventDate && (
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} />
+                        {new Date(item.eventDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Fast Action Button */}
-                  <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-sm font-black text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-                      <KeyRound size={12} className="text-[#c5a059]" />
+                  {/* Bottom Action */}
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <KeyRound size={12} className="text-slate-400" />
                       Passkey Required
                     </span>
-                    <button className="btn-primary py-2 px-4 text-xs rounded-full group-hover:bg-white group-hover:text-black">
-                      Unlock Album
-                      <ArrowRight size={12} />
-                    </button>
+                    <span className="text-[12px] font-bold text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300">
+                      Open <ArrowRight size={14} />
+                    </span>
                   </div>
                 </div>
               </motion.div>
@@ -155,6 +191,23 @@ const LandingPage = () => {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-slate-200 mt-12 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-center">
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-6">
+            <a href="#" className="hover:text-blue-600 transition-colors">About Us</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">Terms & Conditions</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">Contact Us</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">Pricing</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">Cancellation & Refund Policy</a>
+          </div>
+          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            © {new Date().getFullYear()} Dreamline Production. All Rights Reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
