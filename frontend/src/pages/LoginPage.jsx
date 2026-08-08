@@ -17,19 +17,29 @@ const LoginPage = () => {
   React.useEffect(() => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
-    if (token && role === 'client' && eventSlug) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.eventSlug === eventSlug) {
-          // Token is for this event, auto-login!
-          if (redirectPath) {
-            navigate(decodeURIComponent(redirectPath));
-          } else {
-            navigate(`/${eventSlug}/gallery`);
+    if (token && eventSlug) {
+      if (role === 'admin') {
+        navigate(redirectPath ? decodeURIComponent(redirectPath) : `/${eventSlug}/gallery`);
+        return;
+      }
+      if (role === 'client') {
+        try {
+          const base64Url = token.split('.')[1];
+          let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          while (base64.length % 4) {
+            base64 += '=';
           }
+          const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          const payload = JSON.parse(jsonPayload);
+          
+          if (payload.eventSlug === eventSlug || payload.role === 'admin') {
+            navigate(redirectPath ? decodeURIComponent(redirectPath) : `/${eventSlug}/gallery`);
+          }
+        } catch (e) {
+          console.error("Token decode failed", e);
         }
-      } catch (e) {
-        // Invalid token format, ignore
       }
     }
   }, [eventSlug, navigate, redirectPath]);

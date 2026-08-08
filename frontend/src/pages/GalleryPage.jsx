@@ -224,6 +224,7 @@ const GalleryPage = () => {
               </div>
             ) : photos.map((photo, index) => {
               const photoUrl = photo.url || photo.imageUrl;
+              const thumbUrl = photo.thumbnailUrl || photoUrl;
               return (
                 <motion.div 
                   key={photo._id || index}
@@ -235,7 +236,7 @@ const GalleryPage = () => {
                   className={`group relative aspect-[3/4] overflow-hidden rounded-2xl bg-slate-100 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md ${photo.isSelected ? 'border-blue-500 border-4' : 'border border-slate-200'}`}
                 >
                   <img 
-                    src={photoUrl} 
+                    src={thumbUrl} 
                     alt="Gallery Item" 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     loading="lazy"

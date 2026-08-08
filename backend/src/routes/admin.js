@@ -56,11 +56,13 @@ router.post('/photos/bulk', adminAuth, async (req, res) => {
     const photoPromises = images.map(async (item) => {
       const url = typeof item === 'string' ? item : item.url;
       const originalFilename = typeof item === 'string' ? undefined : item.originalFilename;
+      const thumbnailUrl = typeof item === 'string' ? undefined : item.thumbnailUrl;
 
       // 1. Save Photo with isProcessed: false
       const photo = new Photo({
-        eventId,
+        eventId: event._id,
         imageUrl: url,
+        thumbnailUrl: thumbnailUrl,
         originalFilename
       });
       const savedPhoto = await photo.save();

@@ -276,14 +276,34 @@ const AdminPanel = () => {
             // Compress the file before uploading
             const compressedFile = await imageCompression(file, options);
             
+            // Generate a lightweight thumbnail
+            const thumbOptions = {
+              maxSizeMB: 0.05, // 50KB max
+              maxWidthOrHeight: 400,
+              useWebWorker: true
+            };
+            const thumbnailFile = await imageCompression(file, thumbOptions);
+            
+            // Fetch two presigned URLs
             const { data } = await selfieApi.getUploadUrl('event', eventId);
-            const response = await fetch(data.uploadUrl, {
-              method: 'PUT',
-              body: compressedFile,
-              headers: { 'Content-Type': compressedFile.type }
-            });
-            if (!response.ok) throw new Error('S3 upload rejected');
-            return { url: data.fileUrl, originalFilename: file.name };
+            const { data: thumbData } = await selfieApi.getUploadUrl('event', eventId);
+
+            // Upload both in parallel
+            const [response, thumbResponse] = await Promise.all([
+              fetch(data.uploadUrl, {
+                method: 'PUT',
+                body: compressedFile,
+                headers: { 'Content-Type': compressedFile.type }
+              }),
+              fetch(thumbData.uploadUrl, {
+                method: 'PUT',
+                body: thumbnailFile,
+                headers: { 'Content-Type': thumbnailFile.type }
+              })
+            ]);
+
+            if (!response.ok || !thumbResponse.ok) throw new Error('S3 upload rejected');
+            return { url: data.fileUrl, thumbnailUrl: thumbData.fileUrl, originalFilename: file.name };
           } catch (err) {
             console.error('Upload failed for a file', err);
             return null;
