@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    'process.env': {},
+    'global': 'window'
+  },
   server: {
     host: true
   }
