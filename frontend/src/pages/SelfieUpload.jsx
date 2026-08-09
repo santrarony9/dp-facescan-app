@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, Sparkles, XCircle, ArrowRight, User, Phone, ScanLine } from 'lucide-react';
+import { Camera, CheckCircle2, Loader2, Sparkles, XCircle, ArrowRight, User, Phone, ScanLine, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { selfieApi, authApi } from '../api/api';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -150,7 +150,7 @@ const SelfieUpload = () => {
             </>
           )}
           
-          <div className="absolute inset-3 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm relative group">
+          <div className="absolute inset-3 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm group">
             <AnimatePresence mode="wait">
               {image ? (
                 <motion.div 
@@ -224,6 +224,19 @@ const SelfieUpload = () => {
                   Confirm & Next
                   <ArrowRight size={18} />
                 </motion.button>
+              )}
+              
+              {!image && (
+                <div className="pt-4 mt-2 border-t border-slate-100 flex flex-col gap-2">
+                  <p className="text-xs font-medium text-slate-500 text-center">Face scan unavailable?</p>
+                  <button 
+                    onClick={() => navigate(`/login?event=${slug}`)}
+                    className="w-full py-3.5 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    <KeyRound size={18} />
+                    Login with PIN instead
+                  </button>
+                </div>
               )}
             </div>
           )}
