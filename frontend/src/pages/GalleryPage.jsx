@@ -378,7 +378,7 @@ const GalleryPage = () => {
       )}
 
       {/* Category Tabs */}
-      {!loading && categories.length > 2 && !showWishlist && (
+      {!loading && categories.length > 1 && !(categories.length === 2 && categories[1] === 'General') && !showWishlist && (
         <div className="max-w-6xl mx-auto mb-8 relative z-10">
           <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-2 px-1">
             {categories.map(cat => (
