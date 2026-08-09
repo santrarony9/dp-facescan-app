@@ -192,8 +192,7 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
 
       // Execute imgly background removal with configured CDN and quantized model
       const cutoutBlob = await removeBackground(aiInputBlob, {
-        publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/',
-        model: 'isnet_quint8',
+        model: 'medium', // Use standard medium model instead of isnet_quint8 which might not exist on all CDNs
         output: {
           format: 'image/png',
           quality: 0.9,
