@@ -45,12 +45,20 @@ const GalleryPage = () => {
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState(-1); // -1 = closed
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   
   // Touch swipe tracking
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  const displayedPhotos = showWishlist ? photos.filter(p => p.isSelected) : photos;
+  // Compute categories
+  const categories = ['All', ...new Set(photos.map(p => p.category || 'General'))];
+
+  const categoryFilteredPhotos = selectedCategory === 'All' 
+    ? photos 
+    : photos.filter(p => (p.category || 'General') === selectedCategory);
+
+  const displayedPhotos = showWishlist ? categoryFilteredPhotos.filter(p => p.isSelected) : categoryFilteredPhotos;
   const wishlistedCount = photos.filter(p => p.isSelected).length;
 
   const selectedImage = lightboxIndex >= 0 && lightboxIndex < displayedPhotos.length ? displayedPhotos[lightboxIndex] : null;
@@ -360,12 +368,33 @@ const GalleryPage = () => {
 
       {/* Cover Image */}
       {event?.bannerUrl && (
-        <div className="max-w-6xl mx-auto mb-8 relative z-10">
+        <div className="max-w-6xl mx-auto mb-6 relative z-10">
           <img 
             src={event.bannerUrl} 
             alt="Event Cover"
             className="w-full h-48 sm:h-72 lg:h-96 object-cover rounded-[2rem] shadow-sm border border-slate-200"
           />
+        </div>
+      )}
+
+      {/* Category Tabs */}
+      {!loading && categories.length > 2 && !showWishlist && (
+        <div className="max-w-6xl mx-auto mb-8 relative z-10">
+          <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-2 px-1">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`whitespace-nowrap px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                  selectedCategory === cat
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 active:scale-95 shadow-sm'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

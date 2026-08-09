@@ -343,6 +343,10 @@ const AdminPanel = () => {
   };
 
   const handleUpload = async (eventId) => {
+    const categoryInput = window.prompt('Enter category name for these photos (e.g., Haldi, Wedding, Reception). Leave blank for "General".', 'General');
+    if (categoryInput === null) return; // User cancelled
+    const category = categoryInput.trim() || 'General';
+
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.multiple = true;
@@ -426,8 +430,8 @@ const AdminPanel = () => {
 
       if (uploadedData.length > 0) {
         try {
-          // Uploading array of objects [{ url, originalFilename }]
-          await adminApi.uploadPhotos(eventId, uploadedData);
+          // Uploading array of objects [{ url, originalFilename }] with category
+          await adminApi.uploadPhotos(eventId, uploadedData, category);
         } catch (err) {
           console.error('Bulk index failed', err);
           alert('Failed to register photos with AI system.');

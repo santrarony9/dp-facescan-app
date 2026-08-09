@@ -47,7 +47,7 @@ router.post('/events', adminAuth, async (req, res) => {
 
 // POST /api/admin/photos/bulk
 router.post('/photos/bulk', adminAuth, async (req, res) => {
-  const { eventId, images } = req.body; // images = array of strings or objects {url, originalFilename}
+  const { eventId, images, category = 'General' } = req.body; // images = array of strings or objects {url, originalFilename}
   
   try {
     const event = await Event.findById(eventId);
@@ -63,7 +63,8 @@ router.post('/photos/bulk', adminAuth, async (req, res) => {
         eventId: event._id,
         imageUrl: url,
         thumbnailUrl: thumbnailUrl,
-        originalFilename
+        originalFilename,
+        category
       });
       const savedPhoto = await photo.save();
 

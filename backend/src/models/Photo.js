@@ -10,6 +10,7 @@ const PhotoSchema = new mongoose.Schema({
   isSelected: { type: Boolean, default: false }, // Client selection for physical album
   isShowcase: { type: Boolean, default: false }, // Admin selection for public showcase (max 20)
   originalFilename: { type: String }, // Store the original file name for local matching
+  category: { type: String, default: 'General' }, // Support for multi-day event buckets
   createdAt: { type: Date, default: Date.now }
 });
 

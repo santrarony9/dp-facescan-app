@@ -42,7 +42,7 @@ export const adminApi = {
   updateEvent: (eventId, data) => api.put(`/admin/events/${eventId}`, data),
   trainEvent: (eventId) => api.post(`/admin/events/${eventId}/train`),
   getLeads: () => api.get('/admin/leads'),
-  uploadPhotos: (eventId, images) => api.post('/admin/photos/bulk', { eventId, images }),
+  uploadPhotos: (eventId, images, category = 'General') => api.post('/admin/photos/bulk', { eventId, images, category }),
   uploadProof: (eventId, pdfUrl) => api.post(`/admin/events/${eventId}/proof`, { pdfUrl }),
   getDownloadZipUrl: (eventId) => `${api.defaults.baseURL}/admin/events/${eventId}/download-zip`,
   getMerchandise: () => api.get('/merchandise'),
