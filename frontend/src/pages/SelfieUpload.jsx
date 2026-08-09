@@ -131,10 +131,11 @@ const SelfieUpload = () => {
         </div>
         
         {/* Dynamic Viewfinder Frame */}
-        <div className={`relative mx-auto mb-8 transition-all duration-500 ${step === 'camera' ? 'w-48 h-48 sm:w-56 sm:h-56' : 'w-28 h-28 opacity-90'}`}>
+        <div className={`relative mx-auto mb-8 transition-all duration-500 flex items-center justify-center ${step === 'camera' ? 'w-48 h-48 sm:w-56 sm:h-56' : 'w-28 h-28 opacity-90'}`}>
           
           {/* Animated Scanner Ring */}
           <div className="absolute inset-0 border border-slate-200 rounded-full shadow-inner bg-slate-50" />
+          
           {step === 'camera' && (
             <>
               <motion.div 
@@ -150,7 +151,7 @@ const SelfieUpload = () => {
             </>
           )}
           
-          <div className="absolute inset-3 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm group">
+          <div className="absolute inset-3 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm z-10 group">
             <AnimatePresence mode="wait">
               {image ? (
                 <motion.div 
@@ -158,7 +159,7 @@ const SelfieUpload = () => {
                   initial={{ opacity: 0, scale: 1.05 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full relative"
+                  className="w-full h-full absolute inset-0"
                 >
                   <img src={image} alt="Selfie" className="w-full h-full object-cover" />
                   {status === 'processing' && (
@@ -177,10 +178,10 @@ const SelfieUpload = () => {
                   key="placeholder"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col items-center gap-2 p-4"
+                  className="w-full h-full absolute inset-0 flex flex-col items-center justify-center gap-2 p-2"
                 >
-                  <Camera size={44} className="text-slate-300 group-hover:text-blue-500 transition-colors duration-300" />
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Tap to Scan</p>
+                  <Camera size={40} className="text-slate-300 group-hover:text-blue-500 transition-colors duration-300" />
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center leading-tight">Tap to<br/>Scan</p>
                 </motion.div>
               )}
             </AnimatePresence>
