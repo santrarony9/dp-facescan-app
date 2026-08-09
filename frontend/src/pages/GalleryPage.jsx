@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Download, Share2, Grid, List, X, Sparkles, ShoppingBag, 
   Bookmark, Heart, CheckCircle, FileText, Camera, Star,
-  ChevronLeft, ChevronRight, Wand2
+  ChevronLeft, ChevronRight, Wand2, ArrowDown, ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -46,6 +46,7 @@ const GalleryPage = () => {
   const [lightboxIndex, setLightboxIndex] = useState(-1); // -1 = closed
   const [isEditing, setIsEditing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
   
   // Touch swipe tracking
   const touchStartX = useRef(0);
@@ -58,7 +59,13 @@ const GalleryPage = () => {
     ? photos 
     : photos.filter(p => (p.category || 'General') === selectedCategory);
 
-  const displayedPhotos = showWishlist ? categoryFilteredPhotos.filter(p => p.isSelected) : categoryFilteredPhotos;
+  const sortedPhotos = [...categoryFilteredPhotos].sort((a, b) => {
+    const timeA = new Date(a.createdAt).getTime();
+    const timeB = new Date(b.createdAt).getTime();
+    return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+  });
+
+  const displayedPhotos = showWishlist ? sortedPhotos.filter(p => p.isSelected) : sortedPhotos;
   const wishlistedCount = photos.filter(p => p.isSelected).length;
 
   const selectedImage = lightboxIndex >= 0 && lightboxIndex < displayedPhotos.length ? displayedPhotos[lightboxIndex] : null;
@@ -349,6 +356,13 @@ const GalleryPage = () => {
               Share
             </button>
             <div className="flex items-center bg-white border border-slate-200 p-1 rounded-full shadow-sm">
+              <button
+                onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                className="px-3 py-1 text-slate-500 font-bold text-xs uppercase tracking-wider flex items-center gap-1 hover:text-slate-800 transition-all border-r border-slate-200 mr-1"
+              >
+                {sortOrder === 'newest' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                {sortOrder === 'newest' ? 'New' : 'Old'}
+              </button>
               <button 
                 onClick={() => setView('grid')}
                 className={`p-2 rounded-full transition-all ${view === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -632,7 +646,15 @@ const GalleryPage = () => {
                 {displayedPhotos.length} {showWishlist ? 'Wishlisted' : 'Captures'}
               </span>
             </div>
-            {localStorage.getItem('token') && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-full text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+              >
+                {sortOrder === 'newest' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+              </button>
+              {localStorage.getItem('token') && (
               <button 
                 onClick={() => setShowWishlist(!showWishlist)}
                 className="py-2 px-4 bg-pink-50 hover:bg-pink-100 text-pink-600 text-sm font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-colors border border-pink-200"
