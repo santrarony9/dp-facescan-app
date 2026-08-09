@@ -663,6 +663,7 @@ const GalleryPage = () => {
                 {showWishlist ? 'View All' : 'Wishlist'}
               </button>
             )}
+            </div>
           </div>
           
           {/* Action Row for Wishlist Mode */}

@@ -17,7 +17,7 @@ app.use(cors({
     ) {
       callback(null, true);
     } else {
-      callback(null, true); // Fallback allow in dev
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
@@ -32,6 +32,7 @@ app.get('/', (req, res) => res.json({ message: 'Dreamline API is Live 🚀', ver
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/upload', require('./src/routes/upload'));
 app.use('/api/admin', require('./src/routes/admin'));
+app.use('/api/merchandise', require('./src/routes/merchandise'));
 app.use('/api/selfie', require('./src/routes/selfie'));
 app.use('/api/gallery', require('./src/routes/gallery'));
 app.use('/api/photos', require('./src/routes/photo'));
