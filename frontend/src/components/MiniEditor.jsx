@@ -4,9 +4,11 @@ import {
   FlipHorizontal, FlipVertical, Sparkles, Sliders, Sun, 
   Contrast, Droplets, Image as ImageIcon, Check, Eye,
   Compass, Minus, Plus, Undo2, Redo2, Focus, Layers,
-  Thermometer, Film, Aperture, Wand2, Scissors, ShieldAlert
+  Thermometer, Film, Aperture, Wand2, Scissors, ShieldAlert, Crop
 } from 'lucide-react';
 import { removeBackground } from '@imgly/background-removal';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 const PRESETS = [
   { id: 'original', name: 'Original', desc: 'No Filter', filters: { exposure: 0, brightness: 100, contrast: 100, highlights: 0, shadows: 0, whites: 0, blacks: 0, temp: 0, tint: 0, saturation: 100, sepia: 0, grayscale: 0, hueRotate: 0, clarity: 0, sharpness: 0, unsharp: 0, vignette: 0, grain: 0, blur: 0 } },
@@ -56,12 +58,13 @@ const DEFAULT_FILTERS = {
   unsharp: 0,
   vignette: 0,
   grain: 0,
-  blur: 0
+  blur: 0,
+  skinSmooth: 0
 };
 
 const MiniEditor = ({ imageUrl, onClose, onSave }) => {
   // Navigation State
-  const [mainCategory, setMainCategory] = useState('presets'); // 'presets' | 'light' | 'color' | 'effects' | 'detail' | 'cutout' | 'rotate'
+  const [mainCategory, setMainCategory] = useState('presets'); // 'presets' | 'light' | 'color' | 'effects' | 'detail' | 'cutout' | 'rotate' | 'crop'
   const [activeSubTool, setActiveSubTool] = useState('brightness');
   const [activePreset, setActivePreset] = useState('original');
   const [isComparing, setIsComparing] = useState(false);
@@ -80,6 +83,16 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
   const [bgProgress, setBgProgress] = useState('');
   const [rawImageBlob, setRawImageBlob] = useState(null);
 
+  // Text Overlay State
+  const [overlayText, setOverlayText] = useState('');
+  const [overlayColor, setOverlayColor] = useState('#ffffff');
+  const [overlayPos, setOverlayPos] = useState({ x: 50, y: 50 }); // percentages
+
+  // Cropping State
+  const [crop, setCrop] = useState(null);
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const [cropAspect, setCropAspect] = useState(undefined);
+
   // History Stack
   const [history, setHistory] = useState([{
     filters: DEFAULT_FILTERS,
@@ -88,7 +101,10 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
     flipH: false,
     flipV: false,
     activePreset: 'original',
-    bgMode: 'none'
+    bgMode: 'none',
+    overlayText: '',
+    overlayColor: '#ffffff',
+    overlayPos: { x: 50, y: 50 }
   }]);
   const [historyIndex, setHistoryIndex] = useState(0);
   
@@ -239,24 +255,16 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
   };
 
   // Push new state into history
-  const recordHistory = useCallback((newFilters, newAngle, newRot, newH, newV, newPreset, newBgMode) => {
-    const nextState = {
-      filters: { ...(newFilters || filters) },
-      fineAngle: newAngle !== undefined ? newAngle : fineAngle,
-      rotation90: newRot !== undefined ? newRot : rotation90,
-      flipH: newH !== undefined ? newH : flipH,
-      flipV: newV !== undefined ? newV : flipV,
-      activePreset: newPreset !== undefined ? newPreset : activePreset,
-      bgMode: newBgMode !== undefined ? newBgMode : bgMode
-    };
-
+  const recordHistory = useCallback((f, ang, rot90, fH, fV, pr, bg, oTxt = overlayText, oCol = overlayColor, oPos = overlayPos) => {
     setHistory(prev => {
-      const sliced = prev.slice(0, historyIndex + 1);
-      if (sliced.length >= 35) sliced.shift();
-      return [...sliced, nextState];
+      const next = prev.slice(0, historyIndex + 1);
+      next.push({ filters: f, fineAngle: ang, rotation90: rot90, flipH: fH, flipV: fV, activePreset: pr, bgMode: bg, overlayText: oTxt, overlayColor: oCol, overlayPos: oPos });
+      // keep max 15 steps
+      if (next.length > 15) next.shift();
+      return next;
     });
-    setHistoryIndex(prev => prev + 1);
-  }, [filters, fineAngle, rotation90, flipH, flipV, activePreset, bgMode, historyIndex]);
+    setHistoryIndex(prev => Math.min(prev + 1, 15));
+  }, [historyIndex, overlayText, overlayColor, overlayPos]);
 
   // Undo / Redo Actions
   const handleUndo = () => {
@@ -464,6 +472,15 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
         ctx.restore();
       }
 
+      // Skin Smooth Layer (Glamour glow overlay)
+      if (filters.skinSmooth && filters.skinSmooth > 0) {
+        ctx.save();
+        ctx.globalAlpha = (filters.skinSmooth / 100) * 0.6; // max 60% opacity
+        ctx.filter = `blur(${Math.max(2, filters.skinSmooth / 10)}px)`;
+        ctx.drawImage(ctx.canvas, 0, 0);
+        ctx.restore();
+      }
+
     } catch (e) {
       console.warn('Canvas pixel processing warning:', e);
     }
@@ -560,9 +577,29 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
     drawToContext(ctx, targetW, targetH, drawW, drawH, rad, showOriginal);
     if (!showOriginal) {
       processPixelTones(ctx, targetW, targetH);
+      
+      // Draw Text Overlay after processing
+      if (overlayText) {
+        const fontSize = Math.max(16, Math.round(targetW * 0.05));
+        ctx.save();
+        ctx.font = `800 ${fontSize}px "Outfit", "Inter", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textX = targetW * (overlayPos.x / 100);
+        const textY = targetH * (overlayPos.y / 100);
+        
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = fontSize * 0.3;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        ctx.fillStyle = overlayColor;
+        ctx.fillText(overlayText, textX, textY);
+        ctx.restore();
+      }
     }
     return null;
-  }, [image, filters, totalAngle, flipH, flipV, bgMode, cutoutImage]);
+  }, [image, filters, totalAngle, flipH, flipV, bgMode, cutoutImage, overlayText, overlayColor, overlayPos]);
 
   const drawToContext = (ctx, canvasW, canvasH, drawW, drawH, rad, showOriginal) => {
     ctx.clearRect(0, 0, canvasW, canvasH);
@@ -699,11 +736,37 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
       const offscreen = renderCanvas(true, false);
       if (!offscreen) throw new Error('Canvas render failed');
 
+      let finalCanvas = offscreen;
+
+      // Apply crop if completedCrop exists and has a size
+      if (completedCrop && completedCrop.width > 0 && completedCrop.height > 0 && canvasRef.current) {
+        const scaleX = offscreen.width / canvasRef.current.offsetWidth;
+        const scaleY = offscreen.height / canvasRef.current.offsetHeight;
+
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = completedCrop.width * scaleX;
+        croppedCanvas.height = completedCrop.height * scaleY;
+        const cropCtx = croppedCanvas.getContext('2d');
+
+        cropCtx.drawImage(
+          offscreen,
+          completedCrop.x * scaleX,
+          completedCrop.y * scaleY,
+          completedCrop.width * scaleX,
+          completedCrop.height * scaleY,
+          0,
+          0,
+          croppedCanvas.width,
+          croppedCanvas.height
+        );
+        finalCanvas = croppedCanvas;
+      }
+
       const isTransparent = bgMode === 'transparent';
       const mimeType = isTransparent ? 'image/png' : 'image/jpeg';
       const fileExt = isTransparent ? 'png' : 'jpg';
 
-      offscreen.toBlob(async (blob) => {
+      finalCanvas.toBlob(async (blob) => {
         if (!blob) {
           alert('Export failed — not enough memory. Try closing other apps.');
           setSaving(false);
@@ -848,18 +911,33 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
         </div>
 
         {/* Right: Export Button */}
-        <button 
-          onClick={handleSave}
-          disabled={saving}
-          className="py-1.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md shadow-emerald-950/60 flex items-center gap-1.5 disabled:opacity-50"
-        >
-          {saving ? (
-            <span className="inline-block animate-spin">⏳</span>
-          ) : (
-            <Download size={16} />
+        <div className="flex items-center gap-2">
+          {localStorage.getItem('role') === 'admin' && (
+            <button
+              onClick={() => {
+                localStorage.setItem('dreamline_bulk_edits', JSON.stringify({ filters, bgMode }));
+                alert('Edits copied! You can now paste these edits onto multiple photos in the Gallery.');
+              }}
+              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 border border-emerald-900/50 text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              title="Copy current filters to paste on other photos"
+            >
+              <Layers size={14} />
+              <span className="hidden sm:inline">Copy Edits</span>
+            </button>
           )}
-          <span>{saving ? 'Exporting...' : 'Export'}</span>
-        </button>
+          <button 
+            onClick={handleSave}
+            disabled={saving}
+            className="py-1.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md shadow-emerald-950/60 flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {saving ? (
+              <span className="inline-block animate-spin">⏳</span>
+            ) : (
+              <Download size={16} />
+            )}
+            <span>{saving ? 'Exporting...' : 'Export'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. MAIN VIEWPORT - fills ALL remaining space */}
@@ -878,11 +956,27 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
           </div>
         )}
 
-        <canvas 
-          ref={canvasRef} 
-          className="rounded-lg shadow-2xl object-contain"
-          style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
-        />
+        {mainCategory === 'crop' ? (
+          <ReactCrop
+            crop={crop}
+            onChange={c => setCrop(c)}
+            onComplete={c => setCompletedCrop(c)}
+            aspect={cropAspect}
+            className="rounded-lg shadow-2xl"
+          >
+            <canvas 
+              ref={canvasRef} 
+              className="object-contain"
+              style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+            />
+          </ReactCrop>
+        ) : (
+          <canvas 
+            ref={canvasRef} 
+            className="rounded-lg shadow-2xl object-contain"
+            style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+          />
+        )}
 
         {mainCategory === 'rotate' && (
           <div className="absolute top-3 left-3 bg-emerald-500/90 text-black text-[11px] font-extrabold px-2.5 py-1 rounded-md shadow-md">
@@ -966,6 +1060,46 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
             </div>
           )}
 
+          {mainCategory === 'crop' && (
+            <div className="flex items-center gap-3 justify-center w-full">
+              <button onClick={() => setCropAspect(undefined)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${cropAspect === undefined ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Free</button>
+              <button onClick={() => setCropAspect(1)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${cropAspect === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>1:1</button>
+              <button onClick={() => setCropAspect(4/5)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${cropAspect === 4/5 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>4:5</button>
+              <button onClick={() => setCropAspect(16/9)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${cropAspect === 16/9 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>16:9</button>
+              <button onClick={() => { setCrop(null); setCompletedCrop(null); }} className="px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-red-400 hover:bg-slate-700 transition-all">Reset</button>
+            </div>
+          )}
+
+          {mainCategory === 'text' && (
+            <div className="w-full space-y-2">
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Type overlay text..." 
+                  value={overlayText}
+                  onChange={e => { setOverlayText(e.target.value); recordHistory(filters, fineAngle, rotation90, flipH, flipV, activePreset, bgMode, e.target.value, overlayColor, overlayPos); }}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+                <input 
+                  type="color" 
+                  value={overlayColor}
+                  onChange={e => { setOverlayColor(e.target.value); recordHistory(filters, fineAngle, rotation90, flipH, flipV, activePreset, bgMode, overlayText, e.target.value, overlayPos); }}
+                  className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                />
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">X Pos</span>
+                  <input type="range" min="0" max="100" value={overlayPos.x} onChange={e => { const newPos = { ...overlayPos, x: Number(e.target.value) }; setOverlayPos(newPos); recordHistory(filters, fineAngle, rotation90, flipH, flipV, activePreset, bgMode, overlayText, overlayColor, newPos); }} className="accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer" />
+                </div>
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Y Pos</span>
+                  <input type="range" min="0" max="100" value={overlayPos.y} onChange={e => { const newPos = { ...overlayPos, y: Number(e.target.value) }; setOverlayPos(newPos); recordHistory(filters, fineAngle, rotation90, flipH, flipV, activePreset, bgMode, overlayText, overlayColor, newPos); }} className="accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {['light', 'color', 'effects', 'detail'].includes(mainCategory) && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
@@ -973,6 +1107,8 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
                   {activeSubTool === 'temp' ? 'Temperature (Cool/Warm)' : 
                    activeSubTool === 'tint' ? 'Tint (Green/Magenta)' : 
                    activeSubTool === 'unsharp' ? 'Unsharp Mask (Soft Glow)' : 
+                   activeSubTool === 'blur' ? 'Gaussian Blur' : 
+                   activeSubTool === 'skinSmooth' ? 'Skin Smooth (Glamour Glow)' :
                    activeSubTool === 'vignette' ? 'Vignette Edge' : 
                    activeSubTool === 'grain' ? 'Film Grain' : 
                    activeSubTool}
@@ -997,6 +1133,7 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
                   {activeSubTool === 'sharpness' && `+${filters.sharpness}%`}
                   {activeSubTool === 'unsharp' && `+${filters.unsharp}%`}
                   {activeSubTool === 'blur' && `${filters.blur}px`}
+                  {activeSubTool === 'skinSmooth' && `+${filters.skinSmooth}%`}
                 </span>
               </div>
 
@@ -1156,6 +1293,10 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
                 <Sparkles size={14} className="text-pink-400" />
                 <span>Unsharp Mask</span>
               </button>
+              <button onClick={() => setActiveSubTool('skinSmooth')} className={`flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${activeSubTool === 'skinSmooth' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>
+                <Sparkles size={14} className="text-fuchsia-400" />
+                <span>Skin Smooth</span>
+              </button>
               <button onClick={() => setActiveSubTool('blur')} className={`flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${activeSubTool === 'blur' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>
                 <Droplets size={14} className="text-blue-400" />
                 <span>Soft Focus</span>
@@ -1214,6 +1355,14 @@ const MiniEditor = ({ imageUrl, onClose, onSave }) => {
           <button onClick={() => setMainCategory('rotate')} className={`py-2 px-0.5 flex flex-col items-center gap-1 rounded-xl transition-all ${mainCategory === 'rotate' ? 'text-emerald-400 font-bold bg-slate-900' : 'text-slate-400 hover:text-slate-200'}`}>
             <Compass size={14} />
             <span className="text-[8px] sm:text-[9px]">Rotate</span>
+          </button>
+          <button onClick={() => setMainCategory('crop')} className={`py-2 px-0.5 flex flex-col items-center gap-1 rounded-xl transition-all ${mainCategory === 'crop' ? 'text-emerald-400 font-bold bg-slate-900' : 'text-slate-400 hover:text-slate-200'}`}>
+            <Crop size={14} />
+            <span className="text-[8px] sm:text-[9px]">Crop</span>
+          </button>
+          <button onClick={() => setMainCategory('text')} className={`py-2 px-0.5 flex flex-col items-center gap-1 rounded-xl transition-all ${mainCategory === 'text' ? 'text-emerald-400 font-bold bg-slate-900' : 'text-slate-400 hover:text-slate-200'}`}>
+            <span className="text-[14px] font-serif leading-none h-[14px] flex items-center">T</span>
+            <span className="text-[8px] sm:text-[9px]">Text</span>
           </button>
         </div>
       </div>

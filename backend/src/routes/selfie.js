@@ -26,6 +26,9 @@ router.post('/process', auth, selfieLimiter, async (req, res) => {
       userId,
       eventId: event.id || event._id,
       largeFaceListId: event.largeFaceListId
+    }, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 }
     });
 
     res.json({ status: 'processing', message: 'Face matching started' });

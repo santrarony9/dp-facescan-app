@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const s3 = require('../config/aws');
 const { auth } = require('../middleware/auth');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 const { v4: uuidv4 } = require('uuid');
 
 // GET /api/upload/url?type=selfie&eventId=...
-router.get('/url', auth, async (req, res) => {
+router.get('/url', auth, uploadLimiter, async (req, res) => {
   const { type, eventId, contentType = 'image/jpeg' } = req.query;
   const ext = contentType.split('/')[1] || 'jpg';
   const fileName = `${type}/${eventId || 'common'}/${uuidv4()}.${ext}`;

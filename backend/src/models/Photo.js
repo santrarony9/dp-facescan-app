@@ -6,6 +6,7 @@ const PhotoSchema = new mongoose.Schema({
   thumbnailUrl: { type: String },
   highResUrl: { type: String }, // Original untouched high-res image for downloading
   faceIds: [{ type: String }], // Azure Face IDs
+  filterData: { type: Object, default: null }, // Stores non-destructive edits
   isProcessed: { type: Boolean, default: false },
   isSelected: { type: Boolean, default: false }, // Client selection for physical album
   isShowcase: { type: Boolean, default: false }, // Admin selection for public showcase (max 20)

@@ -18,8 +18,13 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
 
     const persistedFaceIds = [];
 
-    // 2. Add each face to the LargeFaceList using its bounding box
-    for (const face of faces) {
+    // 2. Filter faces that are too small (<50px width/height) to save Azure Face Limit space
+    const validFaces = faces.filter(face => face.faceRectangle.width >= 50 && face.faceRectangle.height >= 50);
+    console.log(`[DetectionWorker] Found ${faces.length} faces, ${validFaces.length} valid (>50px) in ${photoId}`);
+
+
+    // 3. Add each valid face to the LargeFaceList using its bounding box
+    for (const face of validFaces) {
       const rect = face.faceRectangle;
       const targetFace = `${rect.left},${rect.top},${rect.width},${rect.height}`;
       
@@ -34,6 +39,11 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
           persistedFaceIds.push(addFaceRes.data.persistedFaceId);
         }
       } catch (addErr) {
+        const statusCode = addErr.response?.status;
+        if (statusCode === 403 || statusCode === 401) {
+          console.warn(`[DetectionWorker] Azure permissions error (403/401). Face recognition may be disabled for this account. Skipping face addition.`);
+          break; // Stop trying to add faces for this photo if the account doesn't have permissions yet
+        }
         console.error(`[DetectionWorker] Failed to add a face for photo ${photoId}:`, addErr.response?.data || addErr.message);
       }
       
@@ -41,7 +51,7 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    // 3. Update the Photo model with persisted faceIds
+    // 4. Update the Photo model with persisted faceIds
     await Photo.findByIdAndUpdate(photoId, { 
       faceIds: persistedFaceIds,
       isProcessed: true 
@@ -51,9 +61,36 @@ const detectionWorker = new Worker('photo-detection', async (job) => {
 
   } catch (error) {
     console.error(`[DetectionWorker] Error processing photo ${photoId}:`, error.response?.data || error.message);
-    // Optionally: marking as failed in the DB
+    // Rethrow to ensure BullMQ marks the job as failed and triggers retries
+    throw error;
   }
-}, { connection: redisConnection, concurrency: 2 });
+}, {
+  connection: redisConnection,
+  concurrency: 5, // Process up to 5 photos concurrently
+  limiter: {
+    max: 8, // Max 8 jobs
+    duration: 1000 // per 1 second (respects 10 TPS limit)
+  },
+  settings: {
+    backoffStrategy: (attemptsMade) => {
+      return Math.min(5000 * Math.pow(2, attemptsMade), 60000);
+    }
+  }
+});
+
+detectionWorker.on('failed', async (job, err) => {
+  if (job.attemptsMade >= 3) {
+    const { detectionDLQ } = require('../config/redis');
+    await detectionDLQ.add('failed-detection', {
+      originalJobId: job.id,
+      data: job.data,
+      error: err.message,
+      failedAt: new Date().toISOString(),
+      attempts: job.attemptsMade
+    });
+    console.error(`[DetectionWorker] Job ${job.id} moved to DLQ after ${job.attemptsMade} attempts`);
+  }
+});
 
 console.log('Face Detection Worker Started');
 

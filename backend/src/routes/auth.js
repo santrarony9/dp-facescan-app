@@ -210,5 +210,37 @@ router.get('/status', auth, async (req, res) => {
     res.status(500).json({ message: 'Error checking status' });
   }
 });
+// GET /api/auth/status/stream
+router.get('/status/stream', auth, async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (user && user.isProcessed) {
+      res.write(`data: ${JSON.stringify({ isProcessed: true })}\n\n`);
+      // Optional: keep connection open or let client close it
+    }
+
+    // Subscribe to Redis channel for real-time updates
+    const subscriber = redisConnection.duplicate();
+    await subscriber.subscribe(`user-status:${req.user.id}`);
+
+    subscriber.on('message', (channel, message) => {
+      res.write(`data: ${message}\n\n`);
+    });
+
+    // Cleanup on disconnect
+    req.on('close', () => {
+      subscriber.unsubscribe();
+      subscriber.quit();
+    });
+  } catch (error) {
+    res.write(`event: error\ndata: ${JSON.stringify({ message: 'Stream error' })}\n\n`);
+    res.end();
+  }
+});
 
 module.exports = router;

@@ -16,4 +16,28 @@ const selfieLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { otpLimiter, selfieLimiter };
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5000, // Increased to support large albums (e.g. 500 photos = 1000 requests)
+  message: { message: 'Upload limit reached' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { message: 'Admin limit reached' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { message: 'Rate limit reached' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { otpLimiter, selfieLimiter, uploadLimiter, adminLimiter, generalLimiter };

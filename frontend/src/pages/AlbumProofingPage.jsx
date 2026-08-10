@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, CheckCircle, Clock, AlertTriangle, MessageSquare } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { galleryApi } from '../api/api';
 import Navbar from '../components/Navbar';
 
@@ -87,7 +88,10 @@ const AlbumProofingPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           
           {/* PDF / Proof Viewer */}
-          <div className="lg:col-span-2 space-y-4 lg:space-y-6">
+          <motion.div 
+            whileHover={{ scale: 1.01 }}
+            className="lg:col-span-2 space-y-4 lg:space-y-6"
+          >
             <div className="bg-white p-2 sm:p-4 border border-slate-200 rounded-3xl overflow-hidden aspect-[16/11] relative shadow-sm">
                {proof?.pdfUrl || event?.bannerUrl ? (
                  <iframe 
@@ -126,7 +130,7 @@ const AlbumProofingPage = () => {
                   </div>
                 )}
             </div>
-          </div>
+          </motion.div>
 
           {/* Feedback Section */}
           <div className="space-y-6">

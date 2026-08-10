@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { auth } = require('../middleware/auth');
+const { generalLimiter } = require('../middleware/rateLimiter');
+
+router.use(generalLimiter);
+
 const Gallery = require('../models/Gallery');
 const Event = require('../models/Event');
 const Photo = require('../models/Photo');
@@ -119,6 +123,9 @@ router.get('/download-url', auth, (req, res) => {
 router.get('/:identifier', auth, async (req, res) => {
   const { identifier } = req.params;
   const userId = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const skip = (page - 1) * limit;
 
   try {
     // Find event first to normalize identifier to eventId
@@ -132,19 +139,43 @@ router.get('/:identifier', auth, async (req, res) => {
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
     let photos = [];
+    let totalCount = 0;
+
     if (req.user.role === 'admin' || req.user.role === 'client' || event.guestPrivacyEnabled === false) {
       // Admin, Main Client, or Guest (if privacy disabled) get ALL photos for the event
-      photos = await Photo.find({ eventId: event._id }).sort({ createdAt: -1 });
+      totalCount = await Photo.countDocuments({ eventId: event._id });
+      photos = await Photo.find({ eventId: event._id })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
     } else {
       // Guest gets only matched photos
-      const gallery = await Gallery.findOne({ userId, eventId: event._id }).populate('photoIds');
-      if (gallery) photos = gallery.photoIds;
+      const galleryDoc = await Gallery.findOne({ userId, eventId: event._id });
+      if (galleryDoc) {
+        totalCount = galleryDoc.photoIds.length;
+        // Populate only the specific slice
+        const populatedGallery = await Gallery.findOne({ userId, eventId: event._id }).populate({
+          path: 'photoIds',
+          options: {
+            sort: { createdAt: -1 },
+            skip: skip,
+            limit: limit
+          }
+        });
+        photos = populatedGallery.photoIds;
+      }
     }
 
     const proof = await AlbumProof.findOne({ eventId: event._id }).sort({ createdAt: -1 });
 
     res.json({ 
       photos: signPhotos(photos), 
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount,
+        hasMore: skip + photos.length < totalCount
+      },
       event: {
         _id: event._id,
         name: event.name,

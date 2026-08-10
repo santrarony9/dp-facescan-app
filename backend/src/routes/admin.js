@@ -12,7 +12,7 @@ const { detectionQueue } = require('../config/redis');
 
 // POST /api/admin/events (Admin Only - simplified)
 router.post('/events', adminAuth, async (req, res) => {
-  const { name, slug, bannerUrl, eventDate, clientName, clientPhone } = req.body;
+  const { name, slug, bannerUrl, eventDate, clientName, clientPhone, uploaderTag } = req.body;
   
   try {
     // 1. Create Azure LargeFaceList (wrapped in try-catch to allow bypass if not approved yet)
@@ -156,6 +156,24 @@ router.get('/events', adminAuth, async (req, res) => {
 
   res.json(eventsWithCount);
 });
+// PUT /api/admin/photos/bulk-edit
+router.put('/photos/bulk-edit', adminAuth, async (req, res) => {
+  const { photoIds, filterData } = req.body;
+  if (!Array.isArray(photoIds) || !filterData) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+  
+  try {
+    await Photo.updateMany(
+      { _id: { $in: photoIds } },
+      { $set: { filterData } }
+    );
+    res.json({ success: true, message: `Updated ${photoIds.length} photos` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // DELETE /api/admin/events/:id
 router.delete('/events/:id', adminAuth, async (req, res) => {
@@ -218,7 +236,7 @@ router.delete('/events/:id', adminAuth, async (req, res) => {
 // PUT /api/admin/events/:id (Update Event Details)
 router.put('/events/:id', adminAuth, async (req, res) => {
   try {
-    const allowedFields = ['name', 'slug', 'bannerUrl', 'watermarkUrl', 'eventDate', 'clientName', 'clientPhone', 'guestPrivacyEnabled', 'albumStatus'];
+    const allowedFields = ['name', 'slug', 'bannerUrl', 'bannerPosition', 'watermarkUrl', 'eventDate', 'clientName', 'clientPhone', 'guestPrivacyEnabled', 'albumStatus', 'uploaderTag'];
     const updates = {};
     for (const key of allowedFields) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

@@ -14,4 +14,7 @@ const detectionQueue = new Queue('photo-detection', {
   connection: redisConnection 
 });
 
-module.exports = { redisConnection, faceQueue, detectionQueue };
+const detectionDLQ = new Queue('photo-detection-dlq', { connection: redisConnection });
+const faceDLQ = new Queue('face-processing-dlq', { connection: redisConnection });
+
+module.exports = { redisConnection, faceQueue, detectionQueue, detectionDLQ, faceDLQ };

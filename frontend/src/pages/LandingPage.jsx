@@ -85,7 +85,7 @@ const LandingPage = () => {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="aspect-[4/3] rounded-3xl bg-zinc-900/60 animate-pulse border border-white/5" />
+              <div key={i} className="aspect-[4/3] rounded-3xl skeleton border border-white/5" />
             ))}
           </div>
         ) : filteredEvents.length === 0 ? (
@@ -101,6 +101,8 @@ const LandingPage = () => {
                 key={item._id || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.03, y: -4 }}
+                whileTap={{ scale: 0.97 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => handleOpenUnlockModal(item)}
                 className="group relative rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 hover:border-[#c5a059]/60 transition-all duration-500 cursor-pointer shadow-2xl luxury-shine flex flex-col"
@@ -110,7 +112,7 @@ const LandingPage = () => {
                   <img 
                     src={item.bannerUrl} 
                     alt={item.name} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="w-full h-full object-cover object-[center_15%] transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                   

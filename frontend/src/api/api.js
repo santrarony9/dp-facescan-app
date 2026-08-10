@@ -32,6 +32,7 @@ export const authApi = {
   passkeyLogin: (passkey, slug) => api.post('/auth/passkey-login', { passkey, slug }),
   adminLogin: (pin) => api.post('/auth/admin-login', { pin }),
   getStatus: () => api.get('/auth/status'),
+  getStatusStreamUrl: (token) => `${api.defaults.baseURL}/auth/status/stream?token=${token}`,
   guestRegister: (mobile, fullName, email) => api.post('/auth/guest-register', { mobile, fullName, email }),
 };
 
@@ -41,6 +42,7 @@ export const adminApi = {
   deleteEvent: (eventId) => api.delete(`/admin/events/${eventId}`),
   updateEvent: (eventId, data) => api.put(`/admin/events/${eventId}`, data),
   trainEvent: (eventId) => api.post(`/admin/events/${eventId}/train`),
+  bulkEditPhotos: (photoIds, filterData) => api.put('/admin/photos/bulk-edit', { photoIds, filterData }),
   getLeads: () => api.get('/admin/leads'),
   uploadPhotos: (eventId, images, category = 'General') => api.post('/admin/photos/bulk', { eventId, images, category }),
   uploadProof: (eventId, pdfUrl) => api.post(`/admin/events/${eventId}/proof`, { pdfUrl }),
@@ -59,7 +61,7 @@ export const selfieApi = {
 export const galleryApi = {
   getPublicEvents: () => api.get('/gallery/public/events'),
   getPublicGallery: (slug) => api.get(`/gallery/${slug}/public`),
-  getGallery: (eventId) => api.get(`/gallery/${eventId}`),
+  getGallery: (eventId, page = 1, limit = 50) => api.get(`/gallery/${eventId}?page=${page}&limit=${limit}`),
   selectPhoto: (photoId) => api.post(`/gallery/${photoId}/select`),
   toggleShowcase: (photoId) => api.post(`/gallery/${photoId}/showcase`),
   submitFeedback: (eventId, comment) => api.post(`/gallery/${eventId}/feedback`, { comment }),

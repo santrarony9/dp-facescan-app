@@ -71,28 +71,37 @@ const SelfieUpload = () => {
       await selfieApi.processSelfie(data.fileUrl, null, slug || 'default');
       setStatus('processing');
 
-      // 4. Poll for match completion
-      const poll = setInterval(async () => {
-        try {
-          const res = await authApi.getStatus();
-          if (res.data.isProcessed) {
-            clearInterval(poll);
-            setStatus('complete');
-            confetti({
-              particleCount: 150,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ['#2563eb', '#60a5fa', '#ffffff'] // blue theme confetti
-            });
-            
-            setTimeout(() => {
-               navigate(`/${slug}/gallery`);
-            }, 2000);
-          }
-        } catch (err) {
-          console.error('Polling error', err);
+      // 4. Connect to SSE stream for real-time completion status
+      const sseToken = localStorage.getItem('token');
+      const source = new EventSource(authApi.getStatusStreamUrl(sseToken));
+      
+      source.onmessage = (event) => {
+        const result = JSON.parse(event.data);
+        if (result.error) {
+          source.close();
+          setStatus('error');
+          alert(`Face scan failed: ${result.error}`);
+        } else if (result.isProcessed) {
+          source.close();
+          setStatus('complete');
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#2563eb', '#60a5fa', '#ffffff'] // blue theme confetti
+          });
+          
+          setTimeout(() => {
+             navigate(`/${slug}/gallery`);
+          }, 2000);
         }
-      }, 2500);
+      };
+
+      source.onerror = (err) => {
+        console.error('SSE connection error', err);
+        source.close();
+        setStatus('error');
+      };
 
     } catch (error) {
       console.error('Onboarding failed', error);
@@ -178,7 +187,7 @@ const SelfieUpload = () => {
                   key="placeholder"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="w-full h-full absolute inset-0 flex flex-col items-center justify-center gap-2 p-2"
+                  className="w-full h-full absolute inset-0 flex flex-col items-center justify-center gap-2 p-2 skeleton"
                 >
                   <Camera size={40} className="text-slate-300 group-hover:text-blue-500 transition-colors duration-300" />
                   <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center leading-tight">Tap to<br/>Scan</p>
@@ -203,7 +212,8 @@ const SelfieUpload = () => {
                 onChange={handleFileChange}
               />
               
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
                 onClick={() => fileInputRef.current.click()}
                 className={`w-full py-3.5 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
                   image 
@@ -213,7 +223,7 @@ const SelfieUpload = () => {
               >
                 {image ? 'Retake Photo' : 'Open Camera'}
                 <Camera size={18} />
-              </button>
+              </motion.button>
               
               {image && (
                 <motion.button 

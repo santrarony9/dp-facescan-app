@@ -4,6 +4,7 @@ const EventSchema = new mongoose.Schema({
   name: { type: String, required: true },
   slug: { type: String, required: true, unique: true },
   bannerUrl: { type: String }, // Used as Album Cover Picture
+  bannerPosition: { type: String, default: 'center 15%' }, // object-position for banner
   watermarkUrl: { type: String }, // Used as Logo Watermark on downloads
   eventDate: { type: Date },
   clientName: { type: String },
@@ -16,6 +17,7 @@ const EventSchema = new mongoose.Schema({
     default: 'Selecting'
   },
   largeFaceListId: { type: String }, // Azure LargeFaceList ID
+  uploaderTag: { type: String, default: 'Unknown PC' }, // Tracks which computer uploaded the original files
   createdAt: { type: Date, default: Date.now }
 });
 

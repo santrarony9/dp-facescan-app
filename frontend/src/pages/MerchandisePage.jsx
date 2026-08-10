@@ -59,9 +59,22 @@ const MerchandisePage = () => {
   const fetchProducts = async () => {
     try {
       const res = await galleryApi.getPublicMerchandise();
-      setProducts(res.data);
-      if (res.data.length > 0) {
-        setSelectedProduct(res.data[0]);
+      
+      const customMug = {
+        _id: 'custom_mug_350',
+        name: 'Custom Printed Mug',
+        description: 'Premium ceramic mug with your photo printed in high quality.',
+        basePrice: 350,
+        iconType: 'mug',
+        colors: ['White', 'Black'],
+        images: []
+      };
+
+      const productsData = [customMug, ...res.data.filter(p => p.iconType !== 'mug')];
+      
+      setProducts(productsData);
+      if (productsData.length > 0) {
+        setSelectedProduct(productsData[0]);
       }
     } catch (error) {
       console.error('Failed to fetch merchandise');
@@ -151,7 +164,7 @@ const MerchandisePage = () => {
 
             {loading ? (
               <div className="space-y-3">
-                {[1,2,3].map(i => <div key={i} className="h-24 bg-slate-200 animate-pulse rounded-2xl" />)}
+                {[1,2,3].map(i => <div key={i} className="h-24 skeleton rounded-2xl" />)}
               </div>
             ) : products.length === 0 ? (
               <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center shadow-sm">
@@ -167,6 +180,7 @@ const MerchandisePage = () => {
                   return (
                     <motion.button
                       key={p._id}
+                      whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setSelectedProduct(p)}
                       className={`p-4 rounded-2xl border text-left transition-all duration-300 relative overflow-hidden ${
@@ -238,8 +252,20 @@ const MerchandisePage = () => {
                         </div>
                      )}
                      {selectedProduct?.iconType === 'mug' && (
-                        <div className="w-36 h-48 rounded-t-[3rem] rounded-b-[1.5rem] border-4 bg-white border-slate-100 overflow-hidden shadow-lg">
-                           <img src={photoUrl} className="w-full h-32 object-cover opacity-90 mix-blend-multiply" alt="Preview" />
+                        <div className="relative flex items-center justify-center">
+                          <div className={`w-32 h-40 rounded-3xl border-[6px] shadow-2xl relative z-10 flex flex-col justify-center overflow-hidden transition-colors duration-300 ${
+                            selectedColor === 'Black' ? 'bg-[#1a1a1a] border-[#2a2a2a]' : 'bg-[#f8f9fa] border-white'
+                          }`}>
+                             <img 
+                               src={photoUrl} 
+                               className={`w-full h-24 object-cover transition-opacity duration-300 ${selectedColor === 'Black' ? 'opacity-70 mix-blend-screen' : 'opacity-90 mix-blend-multiply'}`} 
+                               alt="Preview" 
+                             />
+                          </div>
+                          {/* Handle */}
+                          <div className={`absolute -right-4 top-8 w-12 h-20 border-[6px] rounded-2xl z-0 transition-colors duration-300 ${
+                            selectedColor === 'Black' ? 'border-[#2a2a2a]' : 'border-white'
+                          }`} />
                         </div>
                      )}
                      {(selectedProduct?.iconType === 'keyring' || selectedProduct?.iconType === 'photo' || selectedProduct?.iconType === 'shirt') && (

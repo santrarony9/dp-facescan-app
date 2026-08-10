@@ -54,10 +54,39 @@ const worker = new Worker('face-processing', async (job) => {
 
     await User.findByIdAndUpdate(userId, { isProcessed: true });
 
+    // Publish event for Real-Time SSE Updates
+    redisConnection.publish(`user-status:${userId}`, JSON.stringify({ isProcessed: true, matchCount: matchedPhotoIds.length }));
+
   } catch (error) {
-    console.error('[FaceWorker] Error:', error.response?.data || error.message);
+    const errMsg = error.response?.data?.error?.message || error.message;
+    console.error('[FaceWorker] Error:', errMsg);
     await User.findByIdAndUpdate(userId, { isProcessed: false }); // Allow retry
+    
+    // Publish error event for Real-Time SSE Updates to prevent UI from hanging
+    redisConnection.publish(`user-status:${userId}`, JSON.stringify({ isProcessed: false, error: errMsg }));
   }
-}, { connection: redisConnection, concurrency: 2 });
+}, {
+  connection: redisConnection,
+  concurrency: 2,
+  settings: {
+    backoffStrategy: (attemptsMade) => {
+      return Math.min(5000 * Math.pow(2, attemptsMade), 60000);
+    }
+  }
+});
+
+worker.on('failed', async (job, err) => {
+  if (job.attemptsMade >= 3) {
+    const { faceDLQ } = require('../config/redis');
+    await faceDLQ.add('failed-face-processing', {
+      originalJobId: job.id,
+      data: job.data,
+      error: err.message,
+      failedAt: new Date().toISOString(),
+      attempts: job.attemptsMade
+    });
+    console.error(`[FaceWorker] Job ${job.id} moved to DLQ after ${job.attemptsMade} attempts`);
+  }
+});
 
 console.log('Face Processing Worker Started');

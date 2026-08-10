@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { 
   Download, Share2, Grid, List, X, Sparkles, ShoppingBag, 
   Bookmark, Heart, CheckCircle, FileText, Camera, Star,
-  ChevronLeft, ChevronRight, Wand2, ArrowDown, ArrowUp
+  ChevronLeft, ChevronRight, Wand2, ArrowDown, ArrowUp,
+  ZoomIn, ZoomOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MiniEditor from '../components/MiniEditor';
-import { galleryApi } from '../api/api';
+import { galleryApi, adminApi } from '../api/api';
 import Navbar from '../components/Navbar';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -44,13 +46,36 @@ const GalleryPage = () => {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState(-1); // -1 = closed
-  const [isEditing, setIsEditing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Reposition cover state
+  const [isRepositioning, setIsRepositioning] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [currentPosPercent, setCurrentPosPercent] = useState(15);
+  const [isDragging, setIsDragging] = useState(false);
   
+  // Bulk Edit State
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [selectedForBulk, setSelectedForBulk] = useState(new Set());
+  const [isApplyingBulk, setIsApplyingBulk] = useState(false);
+
   // Touch swipe tracking
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   const touchEndX = useRef(0);
+  const touchEndY = useRef(0);
+
+  // Helper for rendering bulk edits visually
+  const getFilterStyle = (filterData) => {
+    if (!filterData) return {};
+    const { brightness = 100, contrast = 100, saturation = 100, sepia = 0, grayscale = 0, hueRotate = 0, blur = 0 } = filterData;
+    return {
+      filter: `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) sepia(${sepia}%) grayscale(${grayscale}%) hue-rotate(${hueRotate}deg) blur(${blur}px)`
+    };
+  };
 
   // Compute categories
   const categories = ['All', ...new Set(photos.map(p => p.category || 'General'))];
@@ -73,6 +98,18 @@ const GalleryPage = () => {
   useEffect(() => {
     if (slug) fetchGallery();
   }, [slug]);
+
+  useEffect(() => {
+    if (event?.bannerPosition) {
+      if (event.bannerPosition.includes('top')) setCurrentPosPercent(0);
+      else if (event.bannerPosition.includes('bottom')) setCurrentPosPercent(100);
+      else if (event.bannerPosition === 'center center' || event.bannerPosition === 'center') setCurrentPosPercent(50);
+      else {
+        const match = event.bannerPosition.match(/(\d+)%/);
+        if (match) setCurrentPosPercent(parseFloat(match[1]));
+      }
+    }
+  }, [event]);
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -99,6 +136,7 @@ const GalleryPage = () => {
   };
 
   const closeLightbox = () => {
+    setZoomLevel(1);
     setLightboxIndex(-1);
     if (location.hash === '#view') {
       navigate(-1);
@@ -112,33 +150,116 @@ const GalleryPage = () => {
     setIsEditing(true);
   };
 
-  const goNext = useCallback(() => {
-    setLightboxIndex(prev => (prev + 1) % displayedPhotos.length);
-  }, [displayedPhotos.length]);
-
-  const goPrev = useCallback(() => {
-    setLightboxIndex(prev => (prev - 1 + displayedPhotos.length) % displayedPhotos.length);
-  }, [displayedPhotos.length]);
+  const goNext = () => {
+    setZoomLevel(1);
+    setLightboxIndex(prev => (prev < displayedPhotos.length - 1 ? prev + 1 : 0));
+  };
+  
+  const goPrev = () => {
+    setZoomLevel(1);
+    setLightboxIndex(prev => (prev > 0 ? prev - 1 : displayedPhotos.length - 1));
+  };
 
   // Touch swipe handlers
   const handleTouchStart = (e) => {
     if (isEditing) return;
     touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
     touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
   };
   const handleTouchMove = (e) => {
     if (isEditing) return;
     touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
   };
   const handleTouchEnd = () => {
     if (isEditing) return;
     if (!touchStartX.current || !touchEndX.current) return;
-    const diff = touchStartX.current - touchEndX.current;
+    
+    const dx = touchStartX.current - touchEndX.current;
+    const dy = touchStartY.current - touchEndY.current;
+    
     touchStartX.current = 0;
+    touchStartY.current = 0;
     touchEndX.current = 0;
-    if (Math.abs(diff) > 60) {
-      if (diff > 0) goNext();
+    touchEndY.current = 0;
+    
+    const distance = Math.hypot(dx, dy);
+    if (distance > 60 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) goNext();
       else goPrev();
+    }
+  };
+
+  const handleBannerDragStart = (e) => {
+    if (!isRepositioning) return;
+    setIsDragging(true);
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    setDragStartY(clientY);
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleBannerDragMove = (e) => {
+    if (!isDragging || !dragStartY) return;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    const deltaY = clientY - dragStartY;
+    
+    // 1px = roughly 0.2% movement (invert for intuitive drag)
+    const newPercent = Math.max(0, Math.min(100, currentPosPercent - (deltaY * 0.2)));
+    setCurrentPosPercent(newPercent);
+    setDragStartY(clientY);
+  };
+
+  const handleBannerDragEnd = () => {
+    setIsDragging(false);
+    setDragStartY(0);
+    document.body.style.userSelect = '';
+  };
+
+  const saveBannerPosition = async () => {
+    try {
+      const positionStr = `center ${Math.round(currentPosPercent)}%`;
+      await adminApi.updateEvent(event._id, { bannerPosition: positionStr });
+      setIsRepositioning(false);
+      setEvent(prev => ({...prev, bannerPosition: positionStr}));
+      if (galleryCache[slug]) galleryCache[slug].event.bannerPosition = positionStr;
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save cover position");
+    }
+  };
+
+  const handlePasteEdits = async () => {
+    const editsStr = localStorage.getItem('dreamline_bulk_edits');
+    if (!editsStr) {
+      alert("No edits copied! Open a photo in the editor and click 'Copy Edits' first.");
+      return;
+    }
+    
+    if (selectedForBulk.size === 0) return;
+    if (!window.confirm(`Apply copied edits to ${selectedForBulk.size} photos?`)) return;
+
+    setIsApplyingBulk(true);
+    try {
+      const parsedEdits = JSON.parse(editsStr);
+      await adminApi.bulkEditPhotos(Array.from(selectedForBulk), parsedEdits.filters);
+      
+      setPhotos(prev => prev.map(p => {
+        if (selectedForBulk.has(p._id)) {
+          return { ...p, filterData: parsedEdits.filters };
+        }
+        return p;
+      }));
+      
+      alert(`Successfully applied edits to ${selectedForBulk.size} photos!`);
+      setBulkEditMode(false);
+      setSelectedForBulk(new Set());
+    } catch (e) {
+      console.error(e);
+      alert('Failed to apply bulk edits. Check console.');
+    } finally {
+      setIsApplyingBulk(false);
     }
   };
 
@@ -146,35 +267,91 @@ const GalleryPage = () => {
     navigate(`/merchandise?photo=${encodeURIComponent(photo.url || photo.imageUrl)}`);
   };
 
-  const fetchGallery = async () => {
-    if (galleryCache[slug]) {
+
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const observerTarget = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          setPage(p => p + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore]);
+
+  const fetchGallery = async (pageNum = 1) => {
+    if (pageNum === 1 && galleryCache[slug]) {
       setPhotos(galleryCache[slug].photos);
       setEvent(galleryCache[slug].event);
+      setHasMore(galleryCache[slug].hasMore);
+      setTotalCount(galleryCache[slug].totalCount || galleryCache[slug].photos.length);
       setLoading(false);
-      // Fetch in background to update cache (SWR pattern)
+      // Fetch in background to update cache
       try {
         const token = localStorage.getItem('token');
-        const res = await (token ? galleryApi.getGallery(slug) : galleryApi.getPublicGallery(slug));
-        galleryCache[slug] = { photos: res.data.photos, event: res.data.event };
+        const res = await (token ? galleryApi.getGallery(slug, 1, 50) : galleryApi.getPublicGallery(slug));
+        galleryCache[slug] = { 
+          photos: res.data.photos, 
+          event: res.data.event,
+          hasMore: res.data.pagination?.hasMore ?? false,
+          totalCount: res.data.pagination?.totalCount ?? res.data.photos.length
+        };
         setPhotos(res.data.photos);
         setEvent(res.data.event);
+        setHasMore(res.data.pagination?.hasMore ?? false);
+        setTotalCount(res.data.pagination?.totalCount ?? res.data.photos.length);
       } catch (e) { }
       return;
     }
     
-    setLoading(true);
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
+
     try {
       const token = localStorage.getItem('token');
-      const res = await (token ? galleryApi.getGallery(slug) : galleryApi.getPublicGallery(slug));
-      galleryCache[slug] = { photos: res.data.photos, event: res.data.event };
-      setPhotos(res.data.photos);
-      setEvent(res.data.event);
+      const res = await (token ? galleryApi.getGallery(slug, pageNum, 50) : galleryApi.getPublicGallery(slug));
+      
+      const newPhotos = res.data.photos;
+      const hasMoreData = res.data.pagination?.hasMore ?? false;
+      const totalCountData = res.data.pagination?.totalCount ?? newPhotos.length;
+
+      if (pageNum === 1) {
+        setPhotos(newPhotos);
+        setEvent(res.data.event);
+        galleryCache[slug] = { photos: newPhotos, event: res.data.event, hasMore: hasMoreData, totalCount: totalCountData };
+      } else {
+        setPhotos(prev => [...prev, ...newPhotos]);
+      }
+      
+      setHasMore(hasMoreData);
+      setTotalCount(totalCountData);
     } catch (error) {
       console.error('Failed to fetch gallery');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  useEffect(() => {
+    if (slug) fetchGallery(1);
+  }, [slug]);
+
+  useEffect(() => {
+    if (page > 1) fetchGallery(page);
+  }, [page]);
 
   const handleToggleShowcase = async (photoId) => {
     try {
@@ -288,7 +465,7 @@ const GalleryPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-3 sm:p-6 pb-28 pt-24 relative overflow-hidden font-outfit">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-3 sm:p-6 pb-28 pt-24 font-outfit">
       <Navbar />
 
       {/* Public Banner */}
@@ -322,9 +499,9 @@ const GalleryPage = () => {
             </h1>
             <p className="text-slate-500 text-xs sm:text-sm font-medium mt-2">
               {!localStorage.getItem('token') ? (
-                <>Showing <span className="text-blue-600 font-bold">{photos.length}</span> highlighted photos.</>
+                <>Showing <span className="text-blue-600 font-bold">{totalCount}</span> highlighted photos.</>
               ) : (
-                <>Found <span className="text-blue-600 font-bold">{photos.length}</span> high-resolution photos. <span className="text-pink-500 font-bold">{wishlistedCount}</span> wishlisted.</>
+                <>Found <span className="text-blue-600 font-bold">{totalCount}</span> high-resolution photos. <span className="text-pink-500 font-bold">{wishlistedCount}</span> wishlisted.</>
               )}
             </p>
           </div>
@@ -353,8 +530,17 @@ const GalleryPage = () => {
               className="px-4 py-2.5 bg-white border border-slate-200 rounded-full text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
             >
               <Share2 size={14} />
-              Share
+              <span className="hidden sm:inline">Share</span>
             </button>
+            {localStorage.getItem('role') === 'admin' && (
+              <button
+                onClick={() => setBulkEditMode(!bulkEditMode)}
+                className={`px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm ${bulkEditMode ? 'bg-amber-500 text-white border border-amber-600' : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100'}`}
+              >
+                <Layers size={14} />
+                <span className="hidden sm:inline">Bulk Edit</span>
+              </button>
+            )}
             <div className="flex items-center bg-white border border-slate-200 p-1 rounded-full shadow-sm">
               <button
                 onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
@@ -383,11 +569,64 @@ const GalleryPage = () => {
       {/* Cover Image */}
       {event?.bannerUrl && (
         <div className="max-w-6xl mx-auto mb-6 relative z-10">
-          <img 
-            src={event.bannerUrl} 
-            alt="Event Cover"
-            className="w-full h-48 sm:h-72 lg:h-96 object-cover rounded-[2rem] shadow-sm border border-slate-200"
-          />
+          <div 
+            className={`w-full h-48 sm:h-72 lg:h-96 rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden relative ${isRepositioning ? 'cursor-ns-resize ring-4 ring-blue-500' : ''}`}
+            onMouseDown={handleBannerDragStart}
+            onMouseMove={handleBannerDragMove}
+            onMouseUp={handleBannerDragEnd}
+            onMouseLeave={handleBannerDragEnd}
+            onTouchStart={handleBannerDragStart}
+            onTouchMove={handleBannerDragMove}
+            onTouchEnd={handleBannerDragEnd}
+          >
+            <img 
+              src={event.bannerUrl} 
+              alt="Event Cover"
+              className="w-full h-full object-cover pointer-events-none select-none"
+              style={{ objectPosition: isRepositioning ? `center ${currentPosPercent}%` : (event.bannerPosition || 'center 15%') }}
+              draggable="false"
+            />
+            {isRepositioning && (
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                <div className="bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm font-bold tracking-wider text-sm flex items-center gap-2">
+                  <ArrowUp size={16} /> Drag to Reposition <ArrowDown size={16} />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {localStorage.getItem('role') === 'admin' && !isRepositioning && (
+            <button
+              onClick={() => setIsRepositioning(true)}
+              className="absolute top-4 right-4 bg-white/90 text-slate-800 hover:bg-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex items-center gap-2"
+            >
+              <Wand2 size={16} /> Reposition Cover
+            </button>
+          )}
+          
+          {isRepositioning && (
+            <div className="absolute bottom-4 right-4 flex gap-2 z-20">
+              <button
+                onClick={() => {
+                  setIsRepositioning(false);
+                  // Reset to original
+                  if (event.bannerPosition) {
+                    const match = event.bannerPosition.match(/(\d+)%/);
+                    if (match) setCurrentPosPercent(parseFloat(match[1]));
+                  }
+                }}
+                className="bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveBannerPosition}
+                className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all flex items-center gap-2"
+              >
+                <CheckCircle size={16} /> Save Position
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -417,13 +656,13 @@ const GalleryPage = () => {
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-6">
             {[1,2,3,4,5,6,7,8].map(i => (
-              <div key={i} className="aspect-[3/4] rounded-2xl bg-slate-200 animate-pulse border border-slate-100" />
+              <div key={i} className="aspect-square rounded-2xl bg-slate-200 animate-pulse border border-slate-100" />
             ))}
           </div>
         ) : (
-          <div className={`${view === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3' : 'grid grid-cols-1 gap-2 sm:gap-3 max-w-2xl mx-auto'}`}>
+          <div className="w-full">
             {displayedPhotos.length === 0 ? (
-              <div className="col-span-full py-24 text-center space-y-4">
+              <div className="py-24 text-center space-y-4">
                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto border border-blue-100 text-blue-500 shadow-sm">
                   {showWishlist ? <Heart size={28} /> : <Camera size={28} />}
                 </div>
@@ -438,77 +677,144 @@ const GalleryPage = () => {
                   </p>
                 </div>
               </div>
-            ) : displayedPhotos.map((photo, index) => {
-              const photoUrl = photo.url || photo.imageUrl;
-              const thumbUrl = photo.thumbnailUrl || photoUrl;
-              return (
-                <motion.div 
-                  key={photo._id || index}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  onClick={() => openLightbox(index)}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className={`group relative overflow-hidden rounded-2xl bg-slate-100 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md w-full ${photo.isSelected ? 'border-pink-500 border-4' : 'border border-slate-200'}`}
-                >
-                  <img 
-                    src={thumbUrl} 
-                    alt="Gallery Item" 
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-auto block transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className={`absolute top-2 right-2 flex flex-col gap-2 z-20 transition-opacity duration-300 ${photo.isSelected || photo.isShowcase ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    {(localStorage.getItem('role') === 'client' || localStorage.getItem('role') === 'admin') && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleToggleSelect(photo._id); }}
-                        className={`p-2 rounded-full shadow-md transition-all ${photo.isSelected ? 'bg-pink-600 text-white' : 'bg-white/95 text-slate-700 hover:bg-pink-50'}`}
-                        title={photo.isSelected ? 'Wishlisted' : 'Add to Wishlist'}
-                      >
-                        <Heart size={16} fill={photo.isSelected ? 'currentColor' : 'none'} className={photo.isSelected ? '' : 'text-pink-500'} />
-                      </button>
-                    )}
-                    {(localStorage.getItem('role') === 'admin' || photo.isShowcase) && (
-                      <button 
-                        onClick={(e) => { 
-                          if (localStorage.getItem('role') === 'admin') {
-                            e.stopPropagation(); handleToggleShowcase(photo._id); 
-                          }
-                        }}
-                        className={`p-2 rounded-full shadow-md transition-all ${photo.isShowcase ? 'bg-yellow-500 text-white' : 'bg-white/95 text-slate-700 hover:bg-yellow-50'} ${localStorage.getItem('role') !== 'admin' ? 'cursor-default' : ''}`}
-                        title={photo.isShowcase ? (localStorage.getItem('role') === 'admin' ? 'Remove from Showcase' : 'Public Showcase Photo') : 'Mark for Showcase'}
-                      >
-                        <Star size={16} fill={photo.isShowcase ? 'currentColor' : 'none'} className={photo.isShowcase ? '' : 'text-yellow-500'} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleShop(photo); }}
-                      className="flex-1 bg-white/95 text-slate-900 font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow-md hover:bg-white transition-colors"
+            ) : (
+              <VirtuosoGrid
+                useWindowScroll
+                data={displayedPhotos}
+                endReached={() => { 
+                  if (hasMore && !loadingMore) {
+                    setPage(p => p + 1); 
+                  }
+                }}
+                listClassName={view === 'grid' ? 'virtuoso-grid-list' : 'flex flex-col gap-2 sm:gap-3 max-w-2xl mx-auto'}
+                itemContent={(index, photo) => {
+                  const photoUrl = photo.url || photo.imageUrl;
+                  const thumbUrl = photo.thumbnailUrl || photoUrl;
+                  return (
+                    <div 
+                      key={photo._id || index}
+                      onClick={(e) => {
+                        if (bulkEditMode) {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setSelectedForBulk(prev => {
+                            const next = new Set(prev);
+                            if (next.has(photo._id)) next.delete(photo._id);
+                            else next.add(photo._id);
+                            return next;
+                          });
+                        } else {
+                          openLightbox(index);
+                        }
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className={`group relative overflow-hidden rounded-2xl bg-slate-100 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md w-full ${view === 'grid' ? 'aspect-square' : ''} ${photo.isSelected ? 'border-pink-500 border-4' : (bulkEditMode && selectedForBulk.has(photo._id) ? 'border-amber-500 border-4' : 'border border-slate-200')}`}
                     >
-                      <ShoppingBag size={14} className="text-blue-600" />
-                      Personalize
-                    </button>
-                    {localStorage.getItem('token') && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDownload(photo.highResUrl || photoUrl); }}
-                        className="p-2 bg-black/60 backdrop-blur-md rounded-xl text-white hover:bg-black/80 shadow-md transition-colors"
-                      >
-                        <Download size={16} />
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              );
-            })}
+                      {/* Bulk Selection Overlay */}
+                      {bulkEditMode && (
+                        <div className={`absolute inset-0 z-20 transition-all ${selectedForBulk.has(photo._id) ? 'bg-amber-500/20' : 'hover:bg-slate-900/10'}`}>
+                          <div className={`absolute top-4 left-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${selectedForBulk.has(photo._id) ? 'bg-amber-500 border-amber-500 text-white' : 'border-white/80 bg-black/20'}`}>
+                            {selectedForBulk.has(photo._id) && <CheckCircle size={16} />}
+                          </div>
+                        </div>
+                      )}
+                      <img 
+                        src={thumbUrl} 
+                        alt="Gallery Item" 
+                        loading="lazy"
+                        decoding="async"
+                        style={getFilterStyle(photo.filterData)}
+                        className={`w-full transition-transform duration-700 group-hover:scale-105 ${view === 'grid' ? 'h-full object-cover' : 'h-auto block'}`}
+                      />
+                      <div className={`absolute top-2 right-2 flex flex-col gap-2 z-20 transition-opacity duration-300 ${photo.isSelected || photo.isShowcase ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        {(localStorage.getItem('role') === 'client' || localStorage.getItem('role') === 'admin') && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleToggleSelect(photo._id); }}
+                            className={`p-2 rounded-full shadow-md transition-all ${photo.isSelected ? 'bg-pink-600 text-white' : 'bg-white/95 text-slate-700 hover:bg-pink-50'}`}
+                            title={photo.isSelected ? 'Wishlisted' : 'Add to Wishlist'}
+                          >
+                            <Heart size={16} fill={photo.isSelected ? 'currentColor' : 'none'} className={photo.isSelected ? '' : 'text-pink-500'} />
+                          </button>
+                        )}
+                        {(localStorage.getItem('role') === 'admin' || photo.isShowcase) && (
+                          <button 
+                            onClick={(e) => { 
+                              if (localStorage.getItem('role') === 'admin') {
+                                e.stopPropagation(); handleToggleShowcase(photo._id); 
+                              }
+                            }}
+                            className={`p-2 rounded-full shadow-md transition-all ${photo.isShowcase ? 'bg-yellow-500 text-white' : 'bg-white/95 text-slate-700 hover:bg-yellow-50'} ${localStorage.getItem('role') !== 'admin' ? 'cursor-default' : ''}`}
+                            title={photo.isShowcase ? (localStorage.getItem('role') === 'admin' ? 'Remove from Showcase' : 'Public Showcase Photo') : 'Mark for Showcase'}
+                          >
+                            <Star size={16} fill={photo.isShowcase ? 'currentColor' : 'none'} className={photo.isShowcase ? '' : 'text-yellow-500'} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                      <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleShop(photo); }}
+                          className="flex-1 bg-white/95 text-slate-900 font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow-md hover:bg-white transition-colors"
+                        >
+                          <ShoppingBag size={14} className="text-blue-600" />
+                          Personalize
+                        </button>
+                        {localStorage.getItem('token') && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDownload(photo.highResUrl || photoUrl); }}
+                            className="p-2 bg-black/60 backdrop-blur-md rounded-xl text-white hover:bg-black/80 shadow-md transition-colors"
+                          >
+                            <Download size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+            )}
+            
+            {loadingMore && (
+              <div className="w-full flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+              </div>
+            )}
+            
+            {/* Observer Target for Infinite Scroll */}
+            <div ref={observerTarget} className="h-4 w-full" />
           </div>
         )}
       </main>
 
-      {/* Lightbox Preview Modal with Swipe + Arrow Navigation */}
+      {/* Bulk Edit Action Bar */}
       <AnimatePresence>
+        {bulkEditMode && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 backdrop-blur-md text-white rounded-full px-6 py-3 shadow-2xl flex items-center gap-4 border border-slate-700/50"
+          >
+            <span className="text-sm font-bold whitespace-nowrap">{selectedForBulk.size} selected</span>
+            <button
+              onClick={handlePasteEdits}
+              disabled={selectedForBulk.size === 0 || isApplyingBulk}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-5 py-2 rounded-full text-sm font-bold transition-all disabled:opacity-50 whitespace-nowrap"
+            >
+              {isApplyingBulk ? 'Applying...' : 'Paste Edits'}
+            </button>
+            <button
+              onClick={() => { setBulkEditMode(false); setSelectedForBulk(new Set()); }}
+              className="p-2 hover:bg-slate-700 rounded-full transition-all text-slate-400"
+            >
+              <X size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lightbox Preview Modal with Swipe + Arrow Navigation */}
+      <AnimatePresence mode="wait">
         {selectedImage && (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -532,6 +838,23 @@ const GalleryPage = () => {
 
                 <div className="absolute top-4 left-4 sm:top-6 sm:left-6 text-white/60 text-sm font-bold z-[110] bg-black/30 px-3 py-1.5 rounded-full backdrop-blur-sm">
                   {lightboxIndex + 1} / {displayedPhotos.length}
+                </div>
+
+                <div className="absolute top-16 right-4 sm:top-20 sm:right-6 flex flex-col gap-2 z-[110]">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomLevel(z => Math.min(z + 0.5, 4)); }}
+                    className="p-2 bg-black/40 hover:bg-black/60 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-all shadow-lg"
+                    title="Zoom In"
+                  >
+                    <ZoomIn size={24} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomLevel(z => Math.max(z - 0.5, 1)); }}
+                    className="p-2 bg-black/40 hover:bg-black/60 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-all shadow-lg"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut size={24} />
+                  </button>
                 </div>
                 
                 <button 
@@ -576,13 +899,19 @@ const GalleryPage = () => {
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
             >
-              <div className="relative w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center shadow-2xl min-h-[50vh]">
-                <ProgressiveImage
-                  lowResSrc={selectedImage.thumbnailUrl || selectedImage.url || selectedImage.imageUrl}
-                  highResSrc={selectedImage.url || selectedImage.imageUrl}
-                  alt="Full View"
-                  className="max-w-full max-h-[85vh] object-contain"
-                />
+              <div 
+                className={`relative w-full rounded-2xl bg-black flex items-center justify-center shadow-2xl min-h-[50vh] ${zoomLevel > 1 ? 'overflow-auto custom-scrollbar' : 'overflow-hidden'}`}
+                style={{ maxHeight: '85vh' }}
+              >
+                <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center', transition: 'transform 0.3s ease-out' }}>
+                  <ProgressiveImage
+                    lowResSrc={selectedImage.thumbnailUrl || selectedImage.url || selectedImage.imageUrl}
+                    highResSrc={selectedImage.highResUrl || selectedImage.url || selectedImage.imageUrl}
+                    alt="Lightbox Preview"
+                    style={getFilterStyle(selectedImage.filterData)}
+                    className="max-h-[85vh] max-w-full object-contain pointer-events-none select-none drop-shadow-2xl rounded-sm"
+                  />
+                </div>
               </div>
               
               <div className="mt-4 flex gap-3 w-full max-w-md">

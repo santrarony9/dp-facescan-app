@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Upload, Trash2, Camera, LayoutDashboard, 
   Settings, Users, Activity, X, Image as ImageIcon,
@@ -24,7 +24,8 @@ const AdminPanel = () => {
     slug: '', 
     eventDate: '', 
     clientName: '', 
-    clientPhone: '' 
+    clientPhone: '',
+    uploaderTag: ''
   });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
@@ -43,6 +44,12 @@ const AdminPanel = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStats, setUploadStats] = useState({ success: 0, failed: 0, total: 0 });
+  const abortUpload = useRef(false);
+
+  // Upload Category Modal state
+  const [uploadModal, setUploadModal] = useState({ isOpen: false, eventId: null, categories: [] });
+  const [selectedCategory, setSelectedCategory] = useState('General');
+  const [newCategoryText, setNewCategoryText] = useState('');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -207,7 +214,7 @@ const AdminPanel = () => {
       await adminApi.createEvent(newEvent);
       fetchEvents();
       setIsCreating(false);
-      setNewEvent({ name: '', slug: '', eventDate: '', clientName: '', clientPhone: '' });
+      setNewEvent({ name: '', slug: '', eventDate: '', clientName: '', clientPhone: '', uploaderTag: '' });
     } catch (error) {
       alert((error.response?.data?.message || 'Error creating event') + (error.response?.data?.error ? `: ${error.response.data.error}` : ''));
     }
@@ -312,6 +319,11 @@ const AdminPanel = () => {
       }
 
       // 2. Ask user to pick the original folder
+      if (event.uploaderTag && event.uploaderTag !== 'Unknown PC') {
+        const confirmExport = window.confirm(`This event was uploaded from: ${event.uploaderTag}\n\nPlease ensure you are currently using "${event.uploaderTag}" to export these files.\n\nClick OK if you are on the correct computer.`);
+        if (!confirmExport) return;
+      }
+      
       alert(`Please select the local folder on your computer that contains the original high-res photos for "${event.name}".`);
       const originalDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
       
@@ -342,10 +354,18 @@ const AdminPanel = () => {
     }
   };
 
-  const handleUpload = async (eventId) => {
-    const categoryInput = window.prompt('Enter category name for these photos (e.g., Haldi, Wedding, Reception). Leave blank for "General".', 'General');
-    if (categoryInput === null) return; // User cancelled
-    const category = categoryInput.trim() || 'General';
+  const handleOpenUploadModal = (event) => {
+    setUploadModal({ isOpen: true, eventId: event._id, categories: event.categories || ['General'] });
+    setSelectedCategory('General');
+    setNewCategoryText('');
+  };
+
+  const executeUpload = async () => {
+    let category = selectedCategory === 'NEW' ? newCategoryText.trim() : selectedCategory;
+    if (!category) category = 'General';
+    
+    const eventId = uploadModal.eventId;
+    setUploadModal({ isOpen: false, eventId: null, categories: [] });
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -360,7 +380,7 @@ const AdminPanel = () => {
       setUploadStats({ success: 0, failed: 0, total: files.length, lastError: null });
       
       const uploadedData = [];
-      const CONCURRENCY_LIMIT = 3; // Lowered from 10 to prevent OOM crash on mobile/weak PCs
+      const CONCURRENCY_LIMIT = 6; // Increased because we no longer upload 10MB originals
       let lastErrorMsg = null;
       
       // Compression options for Preview (Fullscreen)
@@ -371,40 +391,46 @@ const AdminPanel = () => {
         fileType: 'image/jpeg'
       };
       
+      abortUpload.current = false;
       for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
+        if (abortUpload.current) break;
+
         const chunk = files.slice(i, i + CONCURRENCY_LIMIT);
         const chunkPromises = chunk.map(async (file) => {
           try {
             // Compress for Fullscreen Preview
             const previewFile = await imageCompression(file, previewOptions);
             
-            // Compress for Thumbnail Grid (Max 50KB)
+            // Compress for Thumbnail Grid (Max 50KB) using the ALREADY compressed previewFile to save CPU!
             const thumbOptions = {
               maxSizeMB: 0.05,
               maxWidthOrHeight: 400,
-              useWebWorker: false,
+              useWebWorker: true, // Use WebWorker for speed
               fileType: 'image/jpeg'
             };
-            const thumbnailFile = await imageCompression(file, thumbOptions);
+            const thumbnailFile = await imageCompression(previewFile, thumbOptions);
             
-            // Fetch three presigned URLs
-            const { data: previewData } = await selfieApi.getUploadUrl('event', eventId, previewFile.type);
-            const { data: thumbData } = await selfieApi.getUploadUrl('event', eventId, thumbnailFile.type);
-            const { data: highResData } = await selfieApi.getUploadUrl('event', eventId, file.type);
-
-            // Upload all three in parallel
-            const [previewRes, thumbRes, highRes] = await Promise.all([
-              fetch(previewData.uploadUrl, { method: 'PUT', body: previewFile, headers: { 'Content-Type': previewFile.type } }),
-              fetch(thumbData.uploadUrl, { method: 'PUT', body: thumbnailFile, headers: { 'Content-Type': thumbnailFile.type } }),
-              fetch(highResData.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+            // Fetch presigned URLs in parallel
+            const [previewResUrl, thumbResUrl] = await Promise.all([
+              selfieApi.getUploadUrl('event', eventId, previewFile.type),
+              selfieApi.getUploadUrl('event', eventId, thumbnailFile.type)
             ]);
 
-            if (!previewRes.ok || !thumbRes.ok || !highRes.ok) throw new Error('One or more S3 uploads failed');
+            const previewData = previewResUrl.data;
+            const thumbData = thumbResUrl.data;
+
+            // Upload both in parallel
+            const [previewRes, thumbRes] = await Promise.all([
+              fetch(previewData.uploadUrl, { method: 'PUT', body: previewFile, headers: { 'Content-Type': previewFile.type } }),
+              fetch(thumbData.uploadUrl, { method: 'PUT', body: thumbnailFile, headers: { 'Content-Type': thumbnailFile.type } })
+            ]);
+
+            if (!previewRes.ok || !thumbRes.ok) throw new Error('One or more S3 uploads failed');
             
             return { 
               url: previewData.fileUrl, 
               thumbnailUrl: thumbData.fileUrl, 
-              highResUrl: highResData.fileUrl, 
+              highResUrl: '', // High-res original stays on PC!
               originalFilename: file.name 
             };
           } catch (err) {
@@ -416,26 +442,27 @@ const AdminPanel = () => {
         
         const results = await Promise.all(chunkPromises);
         const successful = results.filter(res => res !== null);
-        uploadedData.push(...successful);
+        
+        let chunkDbSuccessCount = 0;
+        if (successful.length > 0) {
+          try {
+            await adminApi.uploadPhotos(eventId, successful, category);
+            uploadedData.push(...successful);
+            chunkDbSuccessCount = successful.length;
+          } catch (err) {
+            console.error('Bulk index chunk failed', err);
+            lastErrorMsg = err.response?.status === 429 ? 'Rate limit exceeded. Try fewer photos.' : 'Failed to register photos with AI system.';
+          }
+        }
         
         setUploadStats(prev => ({ 
           ...prev, 
-          success: prev.success + successful.length,
-          failed: prev.failed + (chunk.length - successful.length),
+          success: prev.success + chunkDbSuccessCount,
+          failed: prev.failed + (chunk.length - chunkDbSuccessCount),
           lastError: lastErrorMsg
         }));
         
         setUploadProgress(Math.round(((i + chunk.length) / files.length) * 100));
-      }
-
-      if (uploadedData.length > 0) {
-        try {
-          // Uploading array of objects [{ url, originalFilename }] with category
-          await adminApi.uploadPhotos(eventId, uploadedData, category);
-        } catch (err) {
-          console.error('Bulk index failed', err);
-          alert('Failed to register photos with AI system.');
-        }
       }
       
       fetchEvents();
@@ -670,6 +697,11 @@ const AdminPanel = () => {
                                       <Calendar size={12} />
                                       {event.eventDate ? new Date(event.eventDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date set'}
                                     </div>
+                                    {event.uploaderTag && (
+                                      <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1.5 bg-indigo-50 px-2 py-0.5 rounded w-fit">
+                                        💻 PC: {event.uploaderTag}
+                                      </div>
+                                    )}
                                     {event.albumStatus === 'Approved' && (
                                       <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider">
                                         <CheckCircle2 size={12} /> Album Approved
@@ -704,7 +736,7 @@ const AdminPanel = () => {
                               <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <button 
-                                    onClick={() => handleUpload(event._id)}
+                                    onClick={() => handleOpenUploadModal(event)}
                                     className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-blue-100 shadow-sm"
                                   >
                                     <Upload size={14} /> Upload
@@ -963,6 +995,19 @@ const AdminPanel = () => {
             {uploadProgress === 100 && (
               <p className="text-xs text-center text-slate-400 mt-6 font-medium">Processing via AI in background...</p>
             )}
+            
+            {uploadProgress < 100 && (
+              <button 
+                onClick={() => {
+                  abortUpload.current = true;
+                  setIsUploading(false);
+                  fetchEvents(); // Refresh dashboard to show partial upload count
+                }} 
+                className="mt-6 w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-colors"
+              >
+                Cancel Upload
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1056,6 +1101,17 @@ const AdminPanel = () => {
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Uploader Computer Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900" 
+                      placeholder="e.g., PC-3, Rony Laptop"
+                      value={newEvent.uploaderTag}
+                      onChange={e => setNewEvent({...newEvent, uploaderTag: e.target.value})}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Helps identify where the original high-res photos are stored.</p>
+                  </div>
                 </div>
 
               </form>
@@ -1142,6 +1198,21 @@ const AdminPanel = () => {
                       />
                     </div>
                   </div>
+                  
+                  <div className="mt-5">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Cover Picture Position</label>
+                    <select 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 font-medium"
+                      value={editingEvent.bannerPosition || 'center 15%'}
+                      onChange={e => setEditingEvent({...editingEvent, bannerPosition: e.target.value})}
+                    >
+                      <option value="center top">Top</option>
+                      <option value="center 15%">Upper Middle (Default)</option>
+                      <option value="center center">Center</option>
+                      <option value="center 75%">Lower Middle</option>
+                      <option value="center bottom">Bottom</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-5">
@@ -1166,6 +1237,16 @@ const AdminPanel = () => {
                         onChange={e => setEditingEvent({...editingEvent, clientPhone: e.target.value})}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Uploader Computer Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900" 
+                      placeholder="e.g., PC-3, Rony Laptop"
+                      value={editingEvent.uploaderTag || ''}
+                      onChange={e => setEditingEvent({...editingEvent, uploaderTag: e.target.value})}
+                    />
                   </div>
                 </div>
 
@@ -1406,6 +1487,82 @@ const AdminPanel = () => {
             <div className="p-6 sm:px-8 border-t border-slate-100 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
               <button type="button" onClick={() => setEditingMerch(null)} className="w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors">Cancel</button>
               <button form="edit-merch-form" type="submit" className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Category Modal */}
+      {uploadModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Upload Photos</h3>
+              <button onClick={() => setUploadModal({ isOpen: false, eventId: null, categories: [] })} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">Select an existing category or create a new one for these photos.</p>
+              
+              <div className="space-y-4">
+                <label className="block text-sm font-bold text-slate-700">Existing Categories</label>
+                <div className="flex flex-wrap gap-2">
+                  {uploadModal.categories.map((cat, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => { setSelectedCategory(cat); setNewCategoryText(''); }}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                        selectedCategory === cat
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => { setSelectedCategory('NEW'); }}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                      selectedCategory === 'NEW'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                        : 'bg-white border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    + New Category
+                  </button>
+                </div>
+                
+                {selectedCategory === 'NEW' && (
+                  <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">New Category Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Haldi, Reception"
+                      value={newCategoryText}
+                      onChange={(e) => setNewCategoryText(e.target.value)}
+                      autoFocus
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setUploadModal({ isOpen: false, eventId: null, categories: [] })} 
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeUpload} 
+                disabled={selectedCategory === 'NEW' && !newCategoryText.trim()}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                Select Files <ChevronRight size={16} />
+              </button>
             </div>
           </div>
         </div>

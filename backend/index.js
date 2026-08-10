@@ -4,16 +4,16 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(cors({
   origin: (origin, callback) => {
     if (
-      !origin || 
-      origin.includes('dreamlineproduction.com') || 
-      origin.includes('vercel.app') || 
-      origin.includes('localhost') || 
-      origin.includes('127.0.0.1') || 
-      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)
+      !origin ||
+      origin.includes('dreamlineproduction.com') ||
+      origin.includes('dreamlineproduction.vercel.app') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1')
     ) {
       callback(null, true);
     } else {
@@ -40,6 +40,7 @@ app.use('/api/photos', require('./src/routes/photo'));
 // Workers (Starting background processes)
 require('./src/workers/faceWorker');
 require('./src/workers/detectionWorker');
+require('./src/workers/dlqMonitor');
 
 // Global Error Handler — prevents unhandled errors from crashing the server
 app.use((err, req, res, next) => {
